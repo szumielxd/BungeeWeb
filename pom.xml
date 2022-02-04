@@ -8,17 +8,17 @@
         <sourceDirectory>src</sourceDirectory>
         <defaultGoal>clean package</defaultGoal>
         <directory>target</directory>
-        <finalName>BungeeWeb</finalName>
+        <finalName>BungeeWeb-${version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.8.1</version>
-				<configuration>
-					<source>1.8</source>
-					<target>1.8</target>
-					<showDeprecation>true</showDeprecation>
-				</configuration>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                    <showDeprecation>true</showDeprecation>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -35,7 +35,8 @@
                                 <includes>
                                     <include>org.eclipse.jetty:jetty-*:jar:*</include>
                                     <include>javax.servlet:javax.servlet-api:jar:*</include>
-                                    <include>org.mcstats.bungee:metrics:jar:*</include>
+                                    <include>javax.activation:javax.activation-api:jar:*</include>
+                                    <include>com.sun.activation:jakarta.activation:jar:*</include>
                                 </includes>
                             </artifactSet>
                             <filters>
@@ -82,11 +83,11 @@
     </repositories>
     <dependencies>
         <dependency>
-			<groupId>net.md-5</groupId>
-			<artifactId>bungeecord-api</artifactId>
-			<version>1.17-R0.1-SNAPSHOT</version>
-			<scope>provided</scope>
-		</dependency>
+            <groupId>net.md-5</groupId>
+            <artifactId>bungeecord-api</artifactId>
+            <version>1.17-R0.1-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>org.eclipse.jetty</groupId>
             <artifactId>jetty-server</artifactId>
@@ -103,11 +104,17 @@
             <version>2.7</version>
             <scope>compile</scope>
         </dependency>
-		<dependency>
-			<groupId>javax.activation</groupId>
-			<artifactId>javax.activation-api</artifactId>
-			<version>1.2.0</version>
-			<scope>compile</scope>
-		</dependency>
+        <dependency>
+            <groupId>javax.activation</groupId>
+            <artifactId>javax.activation-api</artifactId>
+            <version>1.2.0</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.sun.activation</groupId>
+            <artifactId>jakarta.activation</artifactId>
+            <version>2.0.0</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
 </project>
