@@ -1,5 +1,7 @@
 package io.github.dead_i.bungeeweb.listeners;
 
+import java.net.InetSocketAddress;
+
 import io.github.dead_i.bungeeweb.BungeeWeb;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.event.PostLoginEvent;
@@ -17,6 +19,8 @@ public class PostLoginListener implements Listener {
     @EventHandler
     public void onPostLogin(PostLoginEvent event) {
         ProxiedPlayer p = event.getPlayer();
-        BungeeWeb.log(plugin, p, 3, p.getAddress().getHostString());
+        String host = (p.getSocketAddress() instanceof InetSocketAddress) ?
+        		((InetSocketAddress) p.getSocketAddress()).toString() : p.getSocketAddress().toString();
+        BungeeWeb.log(plugin, p, 3, host);
     }
 }
