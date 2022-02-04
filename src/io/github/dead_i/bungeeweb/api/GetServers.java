@@ -10,8 +10,6 @@ import net.md_5.bungee.api.plugin.Plugin;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 
 public class GetServers extends APICommand {
@@ -23,7 +21,7 @@ public class GetServers extends APICommand {
 
     @Override
     public void execute(Plugin plugin, HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException {
-        HashMap<String, HashMap> out = new HashMap<String, HashMap>();
+        HashMap<String, HashMap<String, String>> out = new HashMap<>();
         for (ServerInfo info : plugin.getProxy().getServers().values()) {
             HashMap<String, String> players = new HashMap<String, String>();
             int i = 0;
