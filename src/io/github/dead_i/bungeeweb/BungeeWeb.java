@@ -15,10 +15,7 @@ import org.eclipse.jetty.server.session.HashSessionManager;
 import org.eclipse.jetty.server.session.SessionHandler;
 import org.eclipse.jetty.util.log.StdErrLog;
 import org.eclipse.jetty.util.security.Password;
-import org.mcstats.Metrics;
-
 import javax.servlet.http.HttpServletRequest;
-import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.security.SecureRandom;
 import java.sql.Connection;
@@ -26,6 +23,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Properties;
 import java.util.Scanner;
@@ -37,19 +35,6 @@ public class BungeeWeb extends Plugin {
     private static DatabaseManager manager;
 
     public void onEnable() {
-        // Run metrics
-        final Plugin plugin = this;
-        getProxy().getScheduler().runAsync(this, new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Metrics metrics = new Metrics(plugin);
-                    metrics.start();
-                } catch (IOException e) {
-                    getLogger().info("Unable to connect to Metrics for plugin statistics.");
-                }
-            }
-        });
 
         // Get configuration
         reloadConfig(this);
@@ -187,16 +172,20 @@ public class BungeeWeb extends Plugin {
         try {
             if (!configFile.exists()) {
                 configFile.createNewFile();
-                ByteStreams.copy(defaultStream, new FileOutputStream(configFile));
-                plugin.getLogger().warning("A new configuration file has been created. Please edit config.yml and restart BungeeCord.");
-                return;
+                try (FileOutputStream out = new FileOutputStream(configFile)) {
+                    ByteStreams.copy(defaultStream, out);
+                    plugin.getLogger().warning("A new configuration file has been created. Please edit config.yml and restart BungeeCord.");
+                    return;
+                }
             }
             config = provider.load(configFile);
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        defaultConfig = provider.load(new Scanner(defaultStream, "UTF-8").useDelimiter("\\A").next());
+        try (Scanner scanner = new Scanner(defaultStream, "UTF-8").useDelimiter("\\A")) {
+            defaultConfig = provider.load(scanner.next());
+        }
     }
 
     public static Connection getDatabase() {
@@ -244,7 +233,7 @@ public class BungeeWeb extends Plugin {
         return null;
     }
 
-    public static List getGroupPermissions(int group) {
+    public static List<Object> getGroupPermissions(int group) {
         List<Object> permissions = new ArrayList<Object>();
 
         for (int i = group; i > 0; i--) {
@@ -272,7 +261,7 @@ public class BungeeWeb extends Plugin {
     public static String salt() {
         byte[] salt = new byte[16];
         new SecureRandom().nextBytes(salt);
-        return DatatypeConverter.printBase64Binary(salt).substring(0, 16);
+        return Base64.getEncoder().encodeToString(salt).substring(0, 16);
     }
 
     public static boolean isNumber(String number) {
