@@ -16,13 +16,15 @@ public class ChatListener implements Listener {
 
     @EventHandler
     public void onChat(ChatEvent event) {
-        String msg = event.getMessage();
-        ProxiedPlayer p = (ProxiedPlayer) event.getSender();
-        int type = 1;
-        if (msg.startsWith("/")) {
-            type = 2;
-            if (BungeeWeb.getConfig().getList("hiddencommands").contains(msg.split(" ")[0].substring(1).toLowerCase())) return;
-        }
-        BungeeWeb.log(plugin, (ProxiedPlayer) event.getSender(), type, msg);
+    	if (event.getSender() instanceof ProxiedPlayer) {
+    		ProxiedPlayer player = (ProxiedPlayer) event.getSender();
+    		String msg = event.getMessage();
+            int type = 1;
+            if (msg.startsWith("/")) {
+                type = 2;
+                if (BungeeWeb.getConfig().getList("hiddencommands").contains(msg.split(" ")[0].substring(1).toLowerCase())) return;
+            }
+            BungeeWeb.log(plugin, player, type, msg);
+    	}
     }
 }
