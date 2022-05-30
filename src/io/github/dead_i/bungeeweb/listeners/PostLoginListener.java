@@ -20,7 +20,7 @@ public class PostLoginListener implements Listener {
     public void onPostLogin(PostLoginEvent event) {
         ProxiedPlayer p = event.getPlayer();
         String host = (p.getSocketAddress() instanceof InetSocketAddress) ?
-        		((InetSocketAddress) p.getSocketAddress()).toString() : p.getSocketAddress().toString();
+        		((InetSocketAddress) p.getSocketAddress()).getHostString() : p.getSocketAddress().toString();
         BungeeWeb.log(plugin, p, 3, host);
     }
 }

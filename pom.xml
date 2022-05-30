@@ -3,7 +3,11 @@
     <groupId>BungeeWeb</groupId>
     <artifactId>BungeeWeb</artifactId>
     <name>BungeeWeb</name>
-    <version>0.1.1</version>
+    <version>0.2.1</version>
+    <properties>
+        <package>io.github.dead_i.bungeeweb</package>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
     <build>
         <sourceDirectory>src</sourceDirectory>
         <defaultGoal>clean package</defaultGoal>
@@ -37,6 +41,7 @@
                                     <include>javax.servlet:javax.servlet-api:jar:*</include>
                                     <include>javax.activation:javax.activation-api:jar:*</include>
                                     <include>com.sun.activation:jakarta.activation:jar:*</include>
+                                    <include>com.zaxxer:HikariCP:jar:*</include>
                                 </includes>
                             </artifactSet>
                             <filters>
@@ -52,6 +57,14 @@
                         </configuration>
                     </execution>
                 </executions>
+                <configuration>
+                    <relocations>
+                        <relocation>
+                            <pattern>com.zaxxer</pattern>
+                            <shadedPattern>${package}.lib.com.zaxxer</shadedPattern>
+                        </relocation>
+                    </relocations>
+                </configuration>
             </plugin>
         </plugins>
         <resources>
@@ -87,6 +100,13 @@
             <artifactId>bungeecord-api</artifactId>
             <version>1.17-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>4.0.3</version>
+            <type>jar</type>
+            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.eclipse.jetty</groupId>

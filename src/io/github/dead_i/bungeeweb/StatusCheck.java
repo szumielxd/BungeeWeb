@@ -22,8 +22,8 @@ public class StatusCheck implements Runnable {
     public void run() {
         int cur = (int) (System.currentTimeMillis() / 1000);
         Configuration config = BungeeWeb.getConfig();
-        ArrayList<String> conditions = new ArrayList<String>();
-        ArrayList<Object> params = new ArrayList<Object>();
+        ArrayList<String> conditions = new ArrayList<>();
+        ArrayList<Object> params = new ArrayList<>();
 
         int players = 0;
         if (config.getBoolean("stats.playercount")) {
@@ -32,51 +32,48 @@ public class StatusCheck implements Runnable {
             params.add(players);
         }
 
-        try {
-            Connection db = BungeeWeb.getDatabase();
+        try (Connection db = BungeeWeb.getDatabase()) {
 
             if (config.getBoolean("stats.activity")) {
-                ResultSet activity = db.createStatement().executeQuery("SELECT COUNT(*) FROM `" + config.getString("database.prefix") + "log` WHERE `time`>" + (cur - inc));
-                activity.next();
-                conditions.add("activity");
-                params.add(activity.getInt(1));
+            	try (ResultSet activity = db.createStatement().executeQuery("SELECT COUNT(*) FROM `" + config.getString("database.prefix") + "log` WHERE `time`>" + (cur - inc))) {
+                    activity.next();
+                    conditions.add("activity");
+                    params.add(activity.getInt(1));
+            	}
             }
 
             if (config.getBoolean("stats.playercount") && config.getBoolean("stats.maxplayers")) {
-                ResultSet maxplayers = db.createStatement().executeQuery("SELECT * FROM `" + config.getString("database.prefix") + "stats` ORDER BY `playercount` DESC LIMIT 1");
-                conditions.add("maxplayers");
-                if (maxplayers.next()) {
-                    int max = maxplayers.getInt("playercount");
-                    if (players > max) {
+                try (ResultSet maxplayers = db.createStatement().executeQuery("SELECT * FROM `" + config.getString("database.prefix") + "stats` ORDER BY `playercount` DESC LIMIT 1")) {
+                	conditions.add("maxplayers");
+                    if (maxplayers.next()) {
+                        int max = maxplayers.getInt("playercount");
+                        if (players > max) {
+                            params.add(players);
+                        } else {
+                            params.add(max);
+                        }
+                    } else {
                         params.add(players);
-                    }else{
-                        params.add(max);
                     }
-                }else{
-                    params.add(players);
                 }
             }
 
-            if (conditions.size() == 0) return;
+            if (conditions.isEmpty()) return;
 
-            String keys = "`time`, ";
-            String values = cur + ", ";
+            StringBuilder keys = new StringBuilder("`time`, ");
+            StringBuilder values = new StringBuilder(cur + ", ");
             for (String c : conditions) {
-                keys += "`" + c + "`, ";
-                values += "?, ";
+                keys.append("`" + c + "`, ");
+                values.append("?, ");
             }
-            keys = keys.substring(0, keys.length() - 2);
-            values = values.substring(0, values.length() - 2);
-
-            PreparedStatement st = db.prepareStatement("INSERT INTO `" + config.getString("database.prefix") + "stats` (" + keys + ") VALUES(" + values + ")");
-
-            int i = 0;
-            for (Object p : params) {
-                i++;
-                st.setObject(i, p);
+            try (PreparedStatement st = db.prepareStatement("INSERT INTO `" + config.getString("database.prefix") + "stats` (" + keys.substring(0, keys.length() - 2) + ") VALUES(" + values.substring(0, values.length() - 2) + ")")) {
+            	int i = 0;
+                for (Object p : params) {
+                    i++;
+                    st.setObject(i, p);
+                }
+                st.executeUpdate();
             }
-
-            st.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().warning("An error occurred when executing the database query to update the statistics.");
         }

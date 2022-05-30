@@ -1,8 +1,13 @@
 package io.github.dead_i.bungeeweb;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
 import io.github.dead_i.bungeeweb.commands.*;
+import io.github.dead_i.bungeeweb.hikari.HikariDB;
+import io.github.dead_i.bungeeweb.hikari.MariaDB;
+import io.github.dead_i.bungeeweb.hikari.MysqlDB;
 import io.github.dead_i.bungeeweb.listeners.*;
+import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.config.Configuration;
@@ -14,7 +19,7 @@ import org.eclipse.jetty.server.session.HashSessionIdManager;
 import org.eclipse.jetty.server.session.HashSessionManager;
 import org.eclipse.jetty.server.session.SessionHandler;
 import org.eclipse.jetty.util.log.StdErrLog;
-import org.eclipse.jetty.util.security.Password;
+import org.eclipse.jetty.util.security.Credential;
 import javax.servlet.http.HttpServletRequest;
 import java.io.*;
 import java.security.SecureRandom;
@@ -22,9 +27,11 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
@@ -32,8 +39,9 @@ import java.util.concurrent.TimeUnit;
 public class BungeeWeb extends Plugin {
     private static Configuration config;
     private static Configuration defaultConfig;
-    private static DatabaseManager manager;
+    private static HikariDB hikari;
 
+    @Override
     public void onEnable() {
 
         // Get configuration
@@ -51,25 +59,31 @@ public class BungeeWeb extends Plugin {
         setupDirectory("themes");
 
         // Connect to the database
-        manager = new DatabaseManager(this, "jdbc:mysql://" + getConfig().get("database.host") + ":" + getConfig().getInt("database.port") + "/" + getConfig().get("database.db") + "?useUnicode=true&characterEncoding=utf8", getConfig().get("database.user").toString(), getConfig().get("database.pass").toString());
-        Connection db = getDatabase();
-        if (db == null) {
-            getLogger().severe("BungeeWeb is disabling. Please check your database settings in your config.yml");
-            return;
-        }
+        hikari = (getConfig().getString("database.mode", "MySQL").equalsIgnoreCase("MySQL")? new MysqlDB(getConfig().getString("database.host") + ":" + getConfig().getInt("database.port"), getConfig().getString("database.db"), ImmutableMap.of("useUnicode", "true", "characterEncoding", "utf8"), getConfig().getString("database.user"), getConfig().getString("database.pass"))
+                : new MariaDB(getConfig().getString("database.host") + ":" + getConfig().getInt("database.port"), getConfig().getString("database.db"), ImmutableMap.of("useUnicode", "true", "characterEncoding", "utf8"), getConfig().getString("database.user"), getConfig().getString("database.pass"))).setup();
 
         // Initial database table setup
-        try {
-            db.createStatement().executeUpdate("CREATE TABLE IF NOT EXISTS `" + getConfig().getString("database.prefix") + "log` (`id` int(16) NOT NULL AUTO_INCREMENT, `time` int(10) NOT NULL, `type` int(2) NOT NULL, `uuid` varchar(32) NOT NULL, `username` varchar(16) NOT NULL, `content` varchar(100) NOT NULL DEFAULT '', PRIMARY KEY (`id`)) CHARACTER SET utf8");
-            db.createStatement().executeUpdate("CREATE TABLE IF NOT EXISTS `" + getConfig().getString("database.prefix") + "users` (`id` int(4) NOT NULL AUTO_INCREMENT, `user` varchar(16) NOT NULL, `pass` varchar(32) NOT NULL, `salt` varchar(16) NOT NULL, `group` int(1) NOT NULL DEFAULT '1', PRIMARY KEY (`id`)) CHARACTER SET utf8");
-            db.createStatement().executeUpdate("CREATE TABLE IF NOT EXISTS `" + getConfig().getString("database.prefix") + "stats` (`id` int(16) NOT NULL AUTO_INCREMENT, `time` int(10) NOT NULL, `playercount` int(6) NOT NULL DEFAULT -1, `maxplayers` int(6) NOT NULL DEFAULT -1, `activity` int(12) NOT NULL DEFAULT -1, PRIMARY KEY (`id`)) CHARACTER SET utf8");
+        try (Connection db = getDatabase()) {
+        	if (db == null) {
+                getLogger().severe("BungeeWeb is disabling. Please check your database settings in your config.yml");
+                return;
+            }
+        	String prefix = getConfig().getString("database.prefix");
+            try (Statement stm = db.createStatement()) { stm.executeUpdate(String.format("CREATE TABLE IF NOT EXISTS `%slog` (`id` int(11) NOT NULL AUTO_INCREMENT, `time` int(10) NOT NULL, `type` int(2) NOT NULL, `uuid` varchar(32) NOT NULL, `username` varchar(16) NOT NULL, `server` varchar(32) NOT NULL DEFAULT '', `content` varchar(256) NOT NULL DEFAULT '', PRIMARY KEY (`id`)) CHARACTER SET utf8", prefix)); }
+            try (Statement stm = db.createStatement()) { stm.executeUpdate(String.format("CREATE TABLE IF NOT EXISTS `%susers` (`id` int(4) NOT NULL AUTO_INCREMENT, `user` varchar(16) NOT NULL, `pass` varchar(32) NOT NULL, `salt` varchar(16) NOT NULL, `group` int(1) NOT NULL DEFAULT '1', PRIMARY KEY (`id`)) CHARACTER SET utf8", prefix)); }
+            try (Statement stm = db.createStatement()) { stm.executeUpdate(String.format("CREATE TABLE IF NOT EXISTS `%sstats` (`id` int(11) NOT NULL AUTO_INCREMENT, `time` int(10) NOT NULL, `playercount` int(6) NOT NULL DEFAULT -1, `maxplayers` int(6) NOT NULL DEFAULT -1, `activity` int(12) NOT NULL DEFAULT -1, PRIMARY KEY (`id`)) CHARACTER SET utf8", prefix)); }
 
-            ResultSet rs = db.createStatement().executeQuery("SELECT COUNT(*) FROM `" + getConfig().getString("database.prefix") + "users`");
-            while (rs.next()) if (rs.getInt(1) == 0) {
-                String salt = salt();
-                db.createStatement().executeUpdate("INSERT INTO `" + getConfig().getString("database.prefix") + "users` (`user`, `pass`, `salt`, `group`) VALUES('admin', '" + encrypt("admin", salt) + "', '" + salt + "', 3)");
-                getLogger().warning("A new admin account has been created.");
-                getLogger().warning("Both the username and password is 'admin'. Please change the password after first logging in.");
+            try (ResultSet rs = db.createStatement().executeQuery(String.format("SELECT COUNT(*) FROM `%susers`", prefix))) {
+            	while (rs.next()) if (rs.getInt(1) == 0) {
+                    String salt = salt();
+                    try (PreparedStatement stm = db.prepareStatement(String.format("INSERT INTO `%susers` (`user`, `pass`, `salt`, `group`) VALUES('admin', ?, ?, 3)", prefix))) { 
+                    	stm.setString(1, encrypt("admin", salt));
+                    	stm.setString(2, salt);
+                    	stm.executeUpdate();
+                    }
+                    getLogger().warning("A new admin account has been created.");
+                    getLogger().warning("Both the username and password is 'admin'. Please change the password after first logging in.");
+                }
             }
         } catch (SQLException e) {
             getLogger().severe("Unable to connect to the database. Disabling...");
@@ -78,7 +92,7 @@ public class BungeeWeb extends Plugin {
         }
 
         // Start automatic chunking
-        setupPurging("logs");
+        setupPurging("log");
         setupPurging("stats");
 
         // Register listeners
@@ -114,15 +128,12 @@ public class BungeeWeb extends Plugin {
         server.setStopAtShutdown(true);
 
         // Start listening
-        getProxy().getScheduler().runAsync(this, new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    server.start();
-                } catch(Exception e) {
-                    getLogger().warning("Unable to bind web server to port.");
-                    e.printStackTrace();
-                }
+        getProxy().getScheduler().runAsync(this, () -> {
+        	try {
+                server.start();
+            } catch(Exception e) {
+                getLogger().warning("Unable to bind web server to port.");
+                e.printStackTrace();
             }
         });
     }
@@ -156,7 +167,7 @@ public class BungeeWeb extends Plugin {
         int days = getConfig().getInt("server." + type + "days");
         int purge = getConfig().getInt("server.purge", 10);
         if (purge > 0 && days > 0) {
-            getProxy().getScheduler().schedule(this, new PurgeScheduler("stats", days), purge, purge, TimeUnit.MINUTES);
+            getProxy().getScheduler().schedule(this, new PurgeScheduler(type, days), purge, purge, TimeUnit.MINUTES); // NO WAY! -> getProxy().getScheduler().schedule(this, new PurgeScheduler("stats", days), purge, purge, TimeUnit.MINUTES);
         }
     }
 
@@ -188,8 +199,8 @@ public class BungeeWeb extends Plugin {
         }
     }
 
-    public static Connection getDatabase() {
-        return manager.getConnection();
+    public static Connection getDatabase() throws SQLException {
+        return hikari.connect();
     }
 
     public static void log(Plugin plugin, ProxiedPlayer player, int type) {
@@ -197,21 +208,20 @@ public class BungeeWeb extends Plugin {
     }
 
     public static void log(Plugin plugin, final ProxiedPlayer player, final int type, final String content) {
-        plugin.getProxy().getScheduler().runAsync(plugin, new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    PreparedStatement st = getDatabase().prepareStatement("INSERT INTO `" + getConfig().getString("database.prefix") + "log` (`time`, `type`, `uuid`, `username`, `content`) VALUES(?, ?, ?, ?, ?)");
-                    st.setLong(1, System.currentTimeMillis() / 1000);
-                    st.setInt(2, type);
-                    st.setString(3, getUUID(player));
-                    st.setString(4, player.getName());
-                    st.setString(5, content.length() > 100 ? content.substring(0, 99) : content);
-                    st.executeUpdate();
-                    st.close();
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
+    	final String server = Optional.ofNullable(player.getServer()).map(srv -> srv.getInfo()).map(ServerInfo::getName).orElse("");
+        plugin.getProxy().getScheduler().runAsync(plugin, () -> {
+            try (Connection conn = getDatabase()) {
+            	try (PreparedStatement stm = conn.prepareStatement(String.format("INSERT INTO `%slog` (`time`, `type`, `uuid`, `username`, `server`, `content`) VALUES(?, ?, ?, ?, ?, ?)", getConfig().getString("database.prefix")))) {
+            		stm.setLong(1, System.currentTimeMillis() / 1000);
+                    stm.setInt(2, type);
+                    stm.setString(3, getUUID(player));
+                    stm.setString(4, player.getName());
+                    stm.setString(5, server.length() > 32 ? content.substring(0, 31) : server);
+                    stm.setString(6, content.length() > 256 ? content.substring(0, 255) : content);
+                    stm.executeUpdate();
+            	}
+            } catch (SQLException e) {
+                e.printStackTrace();
             }
         });
     }
@@ -222,19 +232,21 @@ public class BungeeWeb extends Plugin {
 
     public static ResultSet getLogin(String user, String pass) {
         if (user == null || pass == null) return null;
-        try {
-            PreparedStatement st = getDatabase().prepareStatement("SELECT * FROM `" + BungeeWeb.getConfig().getString("database.prefix") + "users` WHERE `user`=?");
-            st.setString(1, user);
-            ResultSet rs = st.executeQuery();
-            while (rs.next()) if (rs.getString("pass").equals(BungeeWeb.encrypt(pass + rs.getString("salt")))) return rs;
+        try (Connection conn = getDatabase()) {
+        	try (PreparedStatement st = conn.prepareStatement(String.format("SELECT * FROM `%susers` WHERE `user`=?", BungeeWeb.getConfig().getString("database.prefix")))) {
+                st.setString(1, user);
+                ResultSet rs = st.executeQuery();
+                while (rs.next()) if (rs.getString("pass").equals(BungeeWeb.encrypt(pass + rs.getString("salt")))) return rs;
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }
+        
         return null;
     }
 
     public static List<Object> getGroupPermissions(int group) {
-        List<Object> permissions = new ArrayList<Object>();
+        List<Object> permissions = new ArrayList<>();
 
         for (int i = group; i > 0; i--) {
             String key = "permissions.group" + i;
@@ -251,7 +263,7 @@ public class BungeeWeb extends Plugin {
     }
 
     public static String encrypt(String pass) {
-        return Password.MD5.digest(pass).split(":")[1];
+        return Credential.MD5.digest(pass).split(":")[1];
     }
 
     public static String encrypt(String pass, String salt) {

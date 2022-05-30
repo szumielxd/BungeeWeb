@@ -34,11 +34,11 @@
 			"loading": "Chargement...",
 			"1": {
 				"type": "tchat",
-				"entry": "{PLAYER}: {CONTENT}"
+				"entry": "({SERVER}){PLAYER}: {CONTENT}"
 			},
 			"2": {
 				"type": "commandes",
-				"entry": "{PLAYER} a éxécuté la commande: {CONTENT}"
+				"entry": "({SERVER}){PLAYER} a éxécuté la commande: {CONTENT}"
 			},
 			"3": {
 				"type": "join",
@@ -46,7 +46,7 @@
 			},
 			"4": {
 				"type": "quit",
-				"entry": "{PLAYER} s'est déconnecté du proxy"
+				"entry": "({SERVER}){PLAYER} s'est déconnecté du proxy"
 			},
 			"5": {
 				"type": "kick",
@@ -54,7 +54,7 @@
 			},
 			"6": {
 				"type": "serverchange",
-				"entry": "{PLAYER} a changé de serveur pour {CONTENT}"
+				"entry": "({SERVER}){PLAYER} a changé de serveur pour {CONTENT}"
 			}
 		},
 		

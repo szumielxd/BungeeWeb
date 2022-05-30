@@ -8,14 +8,22 @@ import net.md_5.bungee.api.plugin.Plugin;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class GetStats extends APICommand {
-    private Gson gson = new Gson();
+    private final Gson gson = new Gson();
+    private final String[] types = { "playercount", "maxplayers", "activity" };
 
     public GetStats() {
         super("getstats", "stats");
@@ -36,22 +44,21 @@ public class GetStats extends APICommand {
             return;
         }
 
-        ResultSet rs = BungeeWeb.getDatabase().createStatement().executeQuery("SELECT * FROM `" + BungeeWeb.getConfig().getString("database.prefix") + "stats` WHERE `time`>" + time);
-
-        String[] types = { "playercount", "maxplayers", "activity" };
-        HashMap<String, List<Object>> records = new HashMap<String, List<Object>>();
-        for (String t : types) records.put(t, new ArrayList<Object>());
-        while (rs.next()) for (String t : types) {
-            List<Object> record = new ArrayList<Object>();
-            record.add((long) rs.getInt("time") * 1000);
-            record.add(rs.getInt(t));
-            records.get(t).add(record);
+        try (Connection conn = BungeeWeb.getDatabase()) {
+        	try (PreparedStatement stm = conn.prepareStatement(String.format("SELECT * FROM `%sstats` WHERE `time` > ?", BungeeWeb.getConfig().getString("database.prefix")))) {
+        		stm.setLong(1, time);
+        		ResultSet rs = stm.executeQuery();
+                Map<String, List<Object>> records = Stream.of(types).collect(Collectors.toMap(Function.identity(), e -> new ArrayList<>()));
+                while (rs.next()) {
+                	for (String t : types) {
+                		records.get(t).add(Arrays.asList(rs.getLong("time")*1000, rs.getInt(t)));
+                	}
+                }
+                HashMap<String, Object> out = new HashMap<>();
+                out.put("increment", BungeeWeb.getConfig().getInt("server.statscheck"));
+                out.put("data", records);
+                res.getWriter().print(gson.toJson(out));
+        	}
         }
-
-        HashMap<String, Object> out = new HashMap<String, Object>();
-        out.put("increment", BungeeWeb.getConfig().getInt("server.statscheck"));
-        out.put("data", records);
-
-        res.getWriter().print(gson.toJson(out));
     }
 }

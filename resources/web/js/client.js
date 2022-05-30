@@ -358,6 +358,7 @@ function formatLog(log, linked) {
 	
 	return msg.replace('{PLAYER}', log.username)
 		.replace('{UUID}', log.uuid)
+		.replace('{SERVER}', log.server)
 		.replace('{CONTENT}', strip(log.content));
 }
 

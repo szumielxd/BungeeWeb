@@ -8,11 +8,14 @@ import net.md_5.bungee.api.plugin.Plugin;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class GetLogs extends APICommand {
     private Gson gson = new Gson();
@@ -23,8 +26,8 @@ public class GetLogs extends APICommand {
 
     @Override
     public void execute(Plugin plugin, HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException {
-        ArrayList<String> conditions = new ArrayList<String>();
-        ArrayList<Object> params = new ArrayList<Object>();
+        ArrayList<String> conditions = new ArrayList<>();
+        ArrayList<Object> params = new ArrayList<>();
 
         String player = req.getParameter("uuid");
         if (player != null) {
@@ -40,10 +43,10 @@ public class GetLogs extends APICommand {
 
         String filter = req.getParameter("filter");
         if (filter != null) {
-            String filters = "";
+            StringBuilder filters = new StringBuilder();
             for (String f : filter.split(",")) {
                 if (BungeeWeb.isNumber(f)) {
-                    filters += "`type`=? OR ";
+                    filters.append("`type`=? OR ");
                     params.add(f);
                 }
             }
@@ -58,10 +61,10 @@ public class GetLogs extends APICommand {
 
         String qry = "SELECT * FROM `" + BungeeWeb.getConfig().getString("database.prefix") + "log` ";
 
-        if (conditions.size() > 0) {
-            String cond = "WHERE ";
+        if (!conditions.isEmpty()) {
+            StringBuilder cond = new StringBuilder("WHERE ");
             for (String s : conditions) {
-                cond += s + " AND ";
+                cond.append(s + " AND ");
             }
             qry += cond.substring(0, cond.length() - 4);
         }
@@ -80,25 +83,39 @@ public class GetLogs extends APICommand {
 
         qry += "LIMIT " + offset + ", " + limit;
 
-        ArrayList<Object> out = new ArrayList<Object>();
-        try {
-            PreparedStatement st = BungeeWeb.getDatabase().prepareStatement(qry);
-            int i = 0;
-            for (Object o : params) {
-                i++;
-                st.setObject(i, o);
+        ArrayList<Object> out = new ArrayList<>();
+        try (Connection conn = BungeeWeb.getDatabase()) {
+        	try (PreparedStatement st = conn.prepareStatement(qry)) {
+                int i = 0;
+                for (Object o : params) {
+                    i++;
+                    st.setObject(i, o);
+                }
+                ResultSet rs = st.executeQuery();
+                List<String> blackout = BungeeWeb.getConfig().getStringList("blackoutwebcommands").parallelStream().map(String::toLowerCase).map(String::trim).collect(Collectors.toList());
+                while (rs.next()) {
+                    HashMap<String, Object> dbRecord = new HashMap<>();
+                    String content = rs.getString("content");
+                    final int type = rs.getInt("type");
+                    if (type == 2) {
+                    	String[] contentArgs = content.split(" ", -1);
+                    	if (blackout.contains(contentArgs[0].substring(1).toLowerCase())) {
+                    		StringBuilder sb = new StringBuilder(contentArgs[0]);
+                    		for (int j = 1; j < contentArgs.length; j++) {
+                    			sb.append(" ******");
+                    		}
+                    		content = sb.toString();
+                    	}
+                    }
+                    dbRecord.put("time", rs.getLong("time"));
+                    dbRecord.put("type", type);
+                    dbRecord.put("uuid", rs.getString("uuid"));
+                    dbRecord.put("username", rs.getString("username"));
+                    dbRecord.put("server", rs.getString("server"));
+                    dbRecord.put("content", content);
+                    out.add(dbRecord);
+                }
             }
-            ResultSet rs = st.executeQuery();
-            while (rs.next()) {
-                HashMap<String, Object> record = new HashMap<String, Object>();
-                record.put("time", rs.getInt("time"));
-                record.put("type", rs.getInt("type"));
-                record.put("uuid", rs.getString("uuid"));
-                record.put("username", rs.getString("username"));
-                record.put("content", rs.getString("content"));
-                out.add(record);
-            }
-            st.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }

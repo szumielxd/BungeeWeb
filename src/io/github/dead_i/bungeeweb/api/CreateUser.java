@@ -7,6 +7,7 @@ import net.md_5.bungee.api.plugin.Plugin;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 
@@ -26,14 +27,16 @@ public class CreateUser extends APICommand {
             if (user.length() <= 16) {
                 int groupid = Integer.parseInt(group);
                 if (groupid < BungeeWeb.getGroupPower(req)) {
-                    PreparedStatement st = BungeeWeb.getDatabase().prepareStatement("INSERT INTO `" + BungeeWeb.getConfig().getString("database.prefix") + "users` (`user`, `pass`, `salt`, `group`) VALUES(?, ?, ?, ?)");
-                    st.setString(1, user);
-                    st.setString(2, BungeeWeb.encrypt(pass, salt));
-                    st.setString(3, salt);
-                    st.setInt(4, groupid);
-                    st.executeUpdate();
-
-                    res.getWriter().print("{ \"status\": 1 }");
+                	try (Connection conn = BungeeWeb.getDatabase()) {
+                		try (PreparedStatement stm = conn.prepareStatement(String.format("INSERT INTO `%susers` (`user`, `pass`, `salt`, `group`) VALUES(?, ?, ?, ?)", BungeeWeb.getConfig().getString("database.prefix")))) {
+                            stm.setString(1, user);
+                            stm.setString(2, BungeeWeb.encrypt(pass, salt));
+                            stm.setString(3, salt);
+                            stm.setInt(4, groupid);
+                            stm.executeUpdate();
+                            res.getWriter().print("{ \"status\": 1 }");
+                		}
+                	}
                 }else{
                     res.getWriter().print("{ \"status\": 0, \"error\": \"You do not have permission to create a user of this group.\" }");
                 }

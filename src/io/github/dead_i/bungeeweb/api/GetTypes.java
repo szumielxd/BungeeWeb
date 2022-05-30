@@ -12,7 +12,8 @@ import java.sql.SQLException;
 import java.util.HashMap;
 
 public class GetTypes extends APICommand {
-    private Gson gson = new Gson();
+    private final Gson gson = new Gson();
+    private final String[] types = {"chat", "command", "join", "quit", "kick", "serverchange"};
 
     public GetTypes() {
         super("gettypes", true);
@@ -20,15 +21,12 @@ public class GetTypes extends APICommand {
 
     @Override
     public void execute(Plugin plugin, HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
-        HashMap<Integer, String> out = new HashMap<Integer, String>();
-
-        String[] types = {"chat", "command", "join", "quit", "kick", "serverchange"};
+        HashMap<Integer, String> out = new HashMap<>();
         int i = 1;
         for (String t : types) {
             if (BungeeWeb.getConfig().getBoolean("log." + t)) out.put(i, t);
             i++;
         }
-
         res.getWriter().print(gson.toJson(out));
     }
 }

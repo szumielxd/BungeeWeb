@@ -37,6 +37,7 @@ server:
 
 # MySQL details
 database:
+  mode: MySQL # available: [MySQL,MariaDB]
   host: 127.0.0.1
   port: 3306
   user: bungeeweb
@@ -73,6 +74,13 @@ permissions:
 # Sensitive commands that will never be logged
 hiddencommands:
   - login
+
+blackoutwebcommands:
+  - login
+  - l
+  - register
+  - reg
+  - changepassword
 
 # Graphed items
 stats:

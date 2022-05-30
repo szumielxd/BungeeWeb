@@ -34,11 +34,11 @@
 			"loading": "Loading...",
 			"1": {
 				"type": "chat",
-				"entry": "{PLAYER}: {CONTENT}"
+				"entry": "({SERVER}){PLAYER}: {CONTENT}"
 			},
 			"2": {
 				"type": "command",
-				"entry": "{PLAYER} ran the command {CONTENT}"
+				"entry": "({SERVER}){PLAYER} ran the command {CONTENT}"
 			},
 			"3": {
 				"type": "join",
@@ -46,7 +46,7 @@
 			},
 			"4": {
 				"type": "quit",
-				"entry": "{PLAYER} disconnected from the proxy"
+				"entry": "({SERVER}){PLAYER} disconnected from the proxy"
 			},
 			"5": {
 				"type": "kick",
@@ -54,7 +54,7 @@
 			},
 			"6": {
 				"type": "serverchange",
-				"entry": "{PLAYER} switched to {CONTENT}"
+				"entry": "({SERVER}){PLAYER} switched to {CONTENT}"
 			}
 		},
 		

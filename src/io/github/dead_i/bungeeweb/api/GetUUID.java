@@ -7,9 +7,11 @@ import net.md_5.bungee.api.plugin.Plugin;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Optional;
 
 public class GetUUID extends APICommand {
     public GetUUID() {
@@ -23,24 +25,25 @@ public class GetUUID extends APICommand {
             res.getWriter().print("{ \"error\": \"A username was not provided.\" }");
             return;
         }
-
-        ResultSet rs = getByUsername(user, false);
-        boolean matched = rs.next();
-        if (!matched) {
-            rs = getByUsername(user, true);
-            matched = rs.next();
-        }
-
-        if (matched) {
-            res.getWriter().print("{ \"uuid\": \"" + rs.getString("uuid") + "\" }");
-        }else{
-            res.getWriter().print("{ \"error\": \"No such username exists in the database.\" }");
+        try (Connection conn = BungeeWeb.getDatabase()) {
+        	Optional<String> uuid = getByUsername(conn, user, false);
+        	if (!uuid.isPresent()) uuid = getByUsername(conn, user, true);
+        	if (uuid.isPresent()) {
+                res.getWriter().print("{ \"uuid\": \"" + uuid.get() + "\" }");
+            } else {
+                res.getWriter().print("{ \"error\": \"No such username exists in the database.\" }");
+            }
         }
     }
 
-    private ResultSet getByUsername(String search, boolean partial) throws SQLException {
-        PreparedStatement st = BungeeWeb.getDatabase().prepareStatement("SELECT * FROM `" + BungeeWeb.getConfig().getString("database.prefix") + "log` WHERE `username` LIKE ? ORDER BY `id` DESC LIMIT 1");
-        st.setString(1, partial ? "%" + search + "%" : search);
-        return st.executeQuery();
+    private Optional<String> getByUsername(Connection conn, String search, boolean partial) throws SQLException {
+    	try (PreparedStatement stm = conn.prepareStatement(String.format("SELECT `uuid` FROM `%slog` WHERE `username` LIKE ? ORDER BY `id` DESC LIMIT 1", BungeeWeb.getConfig().getString("database.prefix")))) {
+    		stm.setString(1, partial ? "%" + search + "%" : search);
+    		ResultSet rs = stm.executeQuery();
+    		if (rs.next()) {
+    			return Optional.of(rs.getString(1));
+    		}
+    	}
+    	return Optional.empty();
     }
 }

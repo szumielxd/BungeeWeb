@@ -19,7 +19,7 @@ import java.sql.SQLException;
 import java.util.HashMap;
 
 public class WebHandler extends AbstractHandler {
-    private HashMap<String, APICommand> commands = new HashMap<String, APICommand>();
+    private HashMap<String, APICommand> commands = new HashMap<>();
     private Plugin plugin;
 
     public WebHandler(Plugin plugin) {
@@ -92,7 +92,9 @@ public class WebHandler extends AbstractHandler {
             if (resource == null) {
                 File file = new File(plugin.getDataFolder(), "themes/" + name + ".css");
                 if (file.exists()) {
-                    ByteStreams.copy(new FileInputStream(file), res.getOutputStream());
+                	try (FileInputStream is = new FileInputStream(file)) {
+                		ByteStreams.copy(is, res.getOutputStream());
+                	}
                 }
             }else{
                 ByteStreams.copy(resource, res.getOutputStream());
