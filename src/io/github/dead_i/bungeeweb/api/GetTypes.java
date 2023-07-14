@@ -1,32 +1,29 @@
 package io.github.dead_i.bungeeweb.api;
 
-import com.google.gson.Gson;
-import io.github.dead_i.bungeeweb.APICommand;
-import io.github.dead_i.bungeeweb.BungeeWeb;
-import net.md_5.bungee.api.plugin.Plugin;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.SQLException;
-import java.util.HashMap;
+import java.util.stream.Stream;
+
+import org.jetbrains.annotations.NotNull;
+
+import io.github.dead_i.bungeeweb.APICommand;
+import io.github.dead_i.bungeeweb.BungeeWeb;
+import io.github.dead_i.bungeeweb.hikari.HikariDB;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 public class GetTypes extends APICommand {
-    private final Gson gson = new Gson();
-    private final String[] types = {"chat", "command", "join", "quit", "kick", "serverchange"};
-
-    public GetTypes() {
-        super("gettypes", true);
+    
+	public GetTypes(@NotNull BungeeWeb plugin) {
+        super(plugin, "gettypes", true);
     }
 
     @Override
-    public void execute(Plugin plugin, HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
-        HashMap<Integer, String> out = new HashMap<>();
-        int i = 1;
-        for (String t : types) {
-            if (BungeeWeb.getConfig().getBoolean("log." + t)) out.put(i, t);
-            i++;
-        }
-        res.getWriter().print(gson.toJson(out));
+    public void execute(HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
+        res.getWriter().print(GSON_PARSER.toJson(Stream.of(HikariDB.LogType.values())
+    			.map(Enum::name)
+    			.map(String::toLowerCase)
+    			.filter(t -> this.plugin.getConfig().getBoolean("log." + t))
+    			.toArray()));
     }
 }

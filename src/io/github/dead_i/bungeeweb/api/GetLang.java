@@ -1,23 +1,29 @@
 package io.github.dead_i.bungeeweb.api;
 
-import com.google.common.io.ByteStreams;
-import io.github.dead_i.bungeeweb.APICommand;
-import io.github.dead_i.bungeeweb.BungeeWeb;
-import net.md_5.bungee.api.plugin.Plugin;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.sql.SQLException;
 
+import org.jetbrains.annotations.NotNull;
+
+import com.google.common.io.ByteStreams;
+
+import io.github.dead_i.bungeeweb.APICommand;
+import io.github.dead_i.bungeeweb.BungeeWeb;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
 public class GetLang extends APICommand {
-    public GetLang() {
-        super("getlang", true);
+    
+	public GetLang(@NotNull BungeeWeb plugin) {
+        super(plugin, "getlang", true);
     }
 
     @Override
-    public void execute(Plugin plugin, HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
-        String fallback = BungeeWeb.getConfig().getString("server.language");
+    public void execute(HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
+        String fallback = this.plugin.getConfig().getString("server.language");
         String lang = req.getParameter("lang");
 
         if (lang == null) lang = fallback;

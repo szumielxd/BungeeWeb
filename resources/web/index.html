@@ -13,7 +13,30 @@
 		<div class="mask">
 			<div class="dialog" id="playerinfo">
 				<div class="info">
-					<a class="close"><img src="images/close.png" /></a>
+					<a class="close"><img src="images/close.png" alt="close" /></a>
+					<div id="skinpreview"></div>
+					<div class="attribute">
+						<h3 data-lang="general.username" class="langcaps">:</h3>
+						<h1 data-lang="players.title"></h1>
+					</div>
+					<div class="attribute">
+						<h3 data-lang="general.uuid" class="langcaps">:</h3>
+						<h2 class="uuid"></h2>
+					</div>
+				</div>
+				<div class="logs">
+					<form class="search">
+						<input type="text" placeholder="Search logs..." />
+					</form>
+					<div class="filters">
+						<div class="label" data-lang="logs.filter">:</div>
+					</div>
+					<ul class="log"></ul>
+				</div>
+			</div>
+			<div class="dialog" id="serverinfo">
+				<div class="info">
+					<a class="close"><img src="images/close.png" alt="close" /></a>
 					<div id="skinpreview"></div>
 					<div class="attribute">
 						<h3 data-lang="general.username" class="langcaps">:</h3>
@@ -41,10 +64,10 @@
 				<div class="container">
 					<h1>BungeeWeb</h1>
 					<div class="right">
-						<a href="/dashboard" data-permission="dashboard" class="active"><img src="images/dashboard.png" /><span data-lang="dashboard.title"></span></a>
-						<a href="/logs" data-permission="logs"><img src="images/logs.png" /><span data-lang="logs.title"></span></a>
-						<a href="/players" data-permission="players"><img src="images/players.png" /><span data-lang="players.title"></span></a>
-						<a href="#dropdown"><img src="images/logout.png" /><span data-lang="dropdown.title"></span></a>
+						<a href="/dashboard" data-permission="dashboard" class="active"><img src="images/dashboard.png" alt="dashboard" /><span data-lang="dashboard.title"></span></a>
+						<a href="/logs" data-permission="logs"><img src="images/logs.png" alt="logo" /><span data-lang="logs.title"></span></a>
+						<a href="/players" data-permission="players"><img src="images/players.png" alt="players" /><span data-lang="players.title"></span></a>
+						<a href="#dropdown"><img src="images/logout.png" alt="logout" /><span data-lang="dropdown.title"></span></a>
 					</div>
 				</div>
 			</div>
@@ -74,7 +97,9 @@
 						</div>
 					</div>
 				</div>
-				<div class="graph" id="graph-dashboard" data-permission="stats"></div>
+				<div id="graph-dashboard-container">
+					<div class="graph" id="graph-dashboard" data-permission="stats"></div>
+				</div>
 			</div>
 			
 			<div id="logs" class="container">

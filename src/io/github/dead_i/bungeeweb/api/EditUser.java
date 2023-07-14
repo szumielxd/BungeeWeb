@@ -1,24 +1,28 @@
 package io.github.dead_i.bungeeweb.api;
 
-import io.github.dead_i.bungeeweb.APICommand;
-import io.github.dead_i.bungeeweb.BungeeWeb;
-import net.md_5.bungee.api.plugin.Plugin;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
+import org.jetbrains.annotations.NotNull;
+
+import io.github.dead_i.bungeeweb.APICommand;
+import io.github.dead_i.bungeeweb.BungeeWeb;
+import io.github.dead_i.bungeeweb.SecureUtils;
+import io.github.dead_i.bungeeweb.hikari.HikariDB;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
 public class EditUser extends APICommand {
-    public EditUser() {
-        super("edituser", "settings.users.edit");
+    
+	public EditUser(@NotNull BungeeWeb plugin) {
+        super(plugin, "edituser", "settings.users.edit");
     }
 
     @Override
-    public void execute(Plugin plugin, HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
+    public void execute(HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
         ArrayList<String> conditions = new ArrayList<>();
         ArrayList<Object> params = new ArrayList<>();
 
@@ -30,9 +34,9 @@ public class EditUser extends APICommand {
 
         String pass = req.getParameter("pass");
         if (pass != null && !pass.isEmpty()) {
-            String salt = BungeeWeb.salt();
+            String salt = SecureUtils.salt();
             conditions.add("pass");
-            params.add(BungeeWeb.encrypt(pass, salt));
+            params.add(SecureUtils.encrypt(pass, salt));
             conditions.add("salt");
             params.add(salt);
         }
@@ -54,8 +58,8 @@ public class EditUser extends APICommand {
                 }
                 cond = cond.substring(0, cond.length() - 2);
 
-                try (Connection conn = BungeeWeb.getDatabase()) {
-                	try (PreparedStatement stm = conn.prepareStatement(String.format("UPDATE `%susers` SET %s WHERE `id` = ? AND `group` < ?", BungeeWeb.getConfig().getString("database.prefix"), cond))) {
+                try (Connection conn = this.plugin.getDatabaseManager().connect()) {
+                	try (PreparedStatement stm = conn.prepareStatement(String.format("UPDATE `%1$s` SET %2$s WHERE `id` = ? AND `group` < ?", HikariDB.TABLE_USERS, cond))) {
                         int i = 0;
                         for (Object o : params) {
                             stm.setObject(++i, o);

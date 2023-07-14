@@ -6,18 +6,24 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class PurgeScheduler implements Runnable {
-    private String table;
-    private long time;
+    
+	private final BungeeWeb plugin;
+	private final String table;
+    private final long time;
     private long min;
 
-    public PurgeScheduler(String table, int days) {
-        this.table = BungeeWeb.getConfig().getString("database.prefix") + table;
-        time = days * 86400;
+    public PurgeScheduler(BungeeWeb plugin, String table, int days) {
+        this.plugin = plugin;
+    	this.table = this.plugin.getConfig().getString("database.prefix") + table;
+        this.time = days * 86400L;
 
-        try (Connection conn = BungeeWeb.getDatabase()) {
-        	try (PreparedStatement stm = conn.prepareStatement(String.format("SELECT MIN(`id`) FROM `%s`", this.table))) {
-        		ResultSet rs = stm.executeQuery();
-                if (rs.next()) min = rs.getLong(1);
+        try (Connection conn = this.plugin.getDatabaseManager().connect()) {
+        	try (PreparedStatement stm = conn.prepareStatement("SELECT MIN(`id`) FROM `%1$s`".formatted(this.table))) {
+        		try (ResultSet rs = stm.executeQuery()) {
+        			if (rs.next()) {
+                    	this.min = rs.getLong(1);
+                    }
+        		}
         	}
         } catch (SQLException e) {
             e.printStackTrace();
@@ -27,15 +33,19 @@ public class PurgeScheduler implements Runnable {
     @Override
     public void run() {
         // Chunking method courtesy of guidance from http://mysql.rjweb.org/doc.php/deletebig
-        try (Connection conn = BungeeWeb.getDatabase()) {
+        try (Connection conn = this.plugin.getDatabaseManager().connect()) {
         	long max = -1;
-        	try (PreparedStatement stm = conn.prepareStatement(String.format("SELECT `id` FROM `%s` WHERE `id` >= ? ORDER BY `id` LIMIT 1000,1", table))) {
+        	try (PreparedStatement stm = conn.prepareStatement("SELECT `id` FROM `%1$s` WHERE `id` >= ? ORDER BY `id` LIMIT 1000, 1".formatted(table))) {
         		stm.setLong(1, min);
-        		ResultSet maxquery = stm.executeQuery();
-        		if(maxquery.next()) max = maxquery.getLong("id");
+        		try (ResultSet maxquery = stm.executeQuery()) {
+        			if(maxquery.next()) {
+        				max = maxquery.getLong(1);
+        			}
+        		}
+        		
         	}
         	if (max > -1) {
-        		try (PreparedStatement stm = conn.prepareStatement(String.format("DELETE FROM `%s` WHERE `id` >= ? AND `id` < ? AND `time` < ?", table))) {
+        		try (PreparedStatement stm = conn.prepareStatement("DELETE FROM `%1$s` WHERE `id` >= ? AND `id` < ? AND `time` < ?".formatted(table))) {
         			stm.setLong(1, min);
         			stm.setLong(2, max);
         			stm.setLong(3, (System.currentTimeMillis() / 1000) - time);

@@ -1,12 +1,5 @@
 package io.github.dead_i.bungeeweb.api;
 
-import com.google.gson.Gson;
-import io.github.dead_i.bungeeweb.APICommand;
-import io.github.dead_i.bungeeweb.BungeeWeb;
-import net.md_5.bungee.api.plugin.Plugin;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -21,17 +14,25 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class GetStats extends APICommand {
-    private final Gson gson = new Gson();
-    private final String[] types = { "playercount", "maxplayers", "activity" };
+import org.jetbrains.annotations.NotNull;
 
-    public GetStats() {
-        super("getstats", "stats");
+import io.github.dead_i.bungeeweb.APICommand;
+import io.github.dead_i.bungeeweb.BungeeWeb;
+import io.github.dead_i.bungeeweb.hikari.HikariDB;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+public class GetStats extends APICommand {
+    
+	private final String[] types = { "playercount", "maxplayers", "activity" };
+
+    public GetStats(@NotNull BungeeWeb plugin) {
+        super(plugin, "getstats", "stats");
     }
 
 
     @Override
-    public void execute(Plugin plugin, HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
+    public void execute(HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
         String since = req.getParameter("since");
         long current = System.currentTimeMillis() / 1000;
         long month = current - 2628000;
@@ -44,20 +45,21 @@ public class GetStats extends APICommand {
             return;
         }
 
-        try (Connection conn = BungeeWeb.getDatabase()) {
-        	try (PreparedStatement stm = conn.prepareStatement(String.format("SELECT * FROM `%sstats` WHERE `time` > ?", BungeeWeb.getConfig().getString("database.prefix")))) {
+        try (Connection conn = this.plugin.getDatabaseManager().connect()) {
+        	try (PreparedStatement stm = conn.prepareStatement("SELECT * FROM `%1$s` WHERE `time` > ?".formatted(HikariDB.TABLE_STATS))) {
         		stm.setLong(1, time);
         		ResultSet rs = stm.executeQuery();
-                Map<String, List<Object>> records = Stream.of(types).collect(Collectors.toMap(Function.identity(), e -> new ArrayList<>()));
+                Map<String, List<Object>> records = Stream.of(types)
+                		.collect(Collectors.toMap(Function.identity(), e -> new ArrayList<>()));
                 while (rs.next()) {
                 	for (String t : types) {
                 		records.get(t).add(Arrays.asList(rs.getLong("time")*1000, rs.getInt(t)));
                 	}
                 }
                 HashMap<String, Object> out = new HashMap<>();
-                out.put("increment", BungeeWeb.getConfig().getInt("server.statscheck"));
+                out.put("increment", this.plugin.getConfig().getInt("server.statscheck"));
                 out.put("data", records);
-                res.getWriter().print(gson.toJson(out));
+                res.getWriter().print(GSON_PARSER.toJson(out));
         	}
         }
     }

@@ -1,31 +1,36 @@
 package io.github.dead_i.bungeeweb.api;
 
-import io.github.dead_i.bungeeweb.APICommand;
-import io.github.dead_i.bungeeweb.BungeeWeb;
-import net.md_5.bungee.api.plugin.Plugin;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 
+import org.jetbrains.annotations.NotNull;
+
+import io.github.dead_i.bungeeweb.APICommand;
+import io.github.dead_i.bungeeweb.BungeeWeb;
+import io.github.dead_i.bungeeweb.SecureUtils;
+import io.github.dead_i.bungeeweb.hikari.HikariDB;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
 public class ChangePassword extends APICommand {
-    public ChangePassword() {
-        super("changepassword", "settings.password");
+	
+    public ChangePassword(@NotNull BungeeWeb plugin) {
+        super(plugin, "changepassword", "settings.password");
     }
 
     @Override
-    public void execute(Plugin plugin, HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
+    public void execute(HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
         String current = req.getParameter("currentpass");
         String pass = req.getParameter("newpass");
         String confirm = req.getParameter("confirmpass");
-        if (current != null && pass != null && confirm != null && pass.equals(confirm) && BungeeWeb.getLogin((String) req.getSession().getAttribute("user"), current) != null) {
-        	try (Connection conn = BungeeWeb.getDatabase()) {
-        		try (PreparedStatement stm = conn.prepareStatement(String.format("UPDATE `%susers` SET `pass`= ?, `salt`= ? WHERE `id`= ?", BungeeWeb.getConfig().getString("database.prefix")))) {
-        			String salt = BungeeWeb.salt();
-                    stm.setString(1, BungeeWeb.encrypt(req.getParameter("newpass"), salt));
+        HikariDB database = this.plugin.getDatabaseManager();
+        if (current != null && pass != null && confirm != null && pass.equals(confirm) && database.getLogin((String) req.getSession().getAttribute("user"), current).isPresent()) {
+        	try (Connection conn = database.connect()) {
+        		try (PreparedStatement stm = conn.prepareStatement(String.format("UPDATE `%1$s` SET `pass`= ?, `salt`= ? WHERE `id`= ?", HikariDB.TABLE_USERS))) {
+        			String salt = SecureUtils.salt();
+                    stm.setString(1, SecureUtils.encrypt(req.getParameter("newpass"), salt));
                     stm.setString(2, salt);
                     stm.setInt(3, Integer.parseInt((String) req.getSession().getAttribute("id")));
                     stm.executeUpdate();

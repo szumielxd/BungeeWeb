@@ -32,27 +32,27 @@
 			"latestlogs": "Latest Logs",
 			"filter": "Filter",
 			"loading": "Loading...",
-			"1": {
+			"chat": {
 				"type": "chat",
 				"entry": "({SERVER}){PLAYER}: {CONTENT}"
 			},
-			"2": {
+			"command": {
 				"type": "command",
 				"entry": "({SERVER}){PLAYER} ran the command {CONTENT}"
 			},
-			"3": {
+			"join": {
 				"type": "join",
 				"entry": "{PLAYER} joined the proxy from {CONTENT}"
 			},
-			"4": {
+			"quit": {
 				"type": "quit",
 				"entry": "({SERVER}){PLAYER} disconnected from the proxy"
 			},
-			"5": {
+			"kick": {
 				"type": "kick",
 				"entry": "{PLAYER} was kicked from {CONTENT}"
 			},
-			"6": {
+			"server_change": {
 				"type": "serverchange",
 				"entry": "({SERVER}){PLAYER} switched to {CONTENT}"
 			}

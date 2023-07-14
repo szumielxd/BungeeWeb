@@ -18,7 +18,7 @@ pages.dashboard = (function() {
 	function navigate() {
 		// Retrieve initial graph data
 		getStatsData('', function(data) {
-			chart = new Highcharts.StockChart({
+			/*chart = new Highcharts.StockChart({
 				chart: { renderTo: 'graph-dashboard' },
 				series: data,
 				yAxis: { min: 0 },
@@ -58,7 +58,60 @@ pages.dashboard = (function() {
 					inputEnabled: true,
 					selected: 0
 				}
-			});
+			});*/
+			
+			chart = Highcharts.chart('graph-dashboard', {
+	            chart: {
+	                zoomType: 'x'
+	            },
+	            title: {
+	                text: 'Online players'
+	            },
+	            subtitle: {
+	                text: document.ontouchstart === undefined ?
+	                    'Click and drag in the plot area to zoom in' : 'Pinch the chart to zoom in'
+	            },
+	            xAxis: {
+	                type: 'datetime'
+	            },
+	            yAxis: {
+                    min: 0,
+	                title: {
+	                    text: 'Players'
+	                }
+	            },
+	            legend: {
+	                enabled: true
+	            },
+	            plotOptions: {
+	                area: {
+	                    fillColor: {
+	                        linearGradient: {
+	                            x1: 0,
+	                            y1: .1,
+	                            x2: .1,
+	                            y2: .9
+	                        },
+	                        stops: [
+	                            [0, Highcharts.getOptions().colors[0]],
+	                            [1, Highcharts.color(Highcharts.getOptions().colors[0]).setOpacity(0).get('rgba')]
+	                        ]
+	                    },
+	                    marker: {
+	                        radius: 2
+	                    },
+	                    lineWidth: 1,
+	                    states: {
+	                        hover: {
+	                            lineWidth: 1
+	                        }
+	                    },
+	                    threshold: null
+	                }
+	            },
+	
+	            series: data
+	        });
 		});
 		
 		update(0);
@@ -72,7 +125,7 @@ pages.dashboard = (function() {
 			var entries = '';
 			var i = 0;
 			for (server in data) {
-				entries += '<li data-server="' + server + '">' + server + '<span class="badge">' + data[server] + '</span></li>';
+				entries += `<li data-server="${server}"><a class="serverlink" data-server="${server}">${server}<span class="badge">${data[server]}</span></a></li>`;
 				players += data[server];
 				i++;
 			}

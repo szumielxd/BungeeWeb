@@ -29,11 +29,11 @@ var skinview = function(global, undefined) {
 	skinBig.height = 32*sizeRatio;
 	
 	var skincanvas = global.document.createElement('canvas');
-	var skinc = skincanvas.getContext('2d');
+	var skinc = skincanvas.getContext('2d', { willReadFrequently: true });
 	skincanvas.width = 64;
 	skincanvas.height = 32;
 	var capecanvas = global.document.createElement('canvas');
-	var capec = capecanvas.getContext('2d');
+	var capec = capecanvas.getContext('2d', { willReadFrequently: true });
 	capecanvas.width = 64;
 	capecanvas.height = 32;
 	
@@ -43,40 +43,37 @@ var skinview = function(global, undefined) {
 	var isFunnyRunning = false;
 	
 	var getMaterial = function (img, trans) {
+		const txt = new THREE.Texture(
+			img,
+			THREE.UVMapping,
+			THREE.ClampToEdgeWrapping,
+			THREE.ClampToEdgeWrapping,
+			THREE.NearestFilter,
+			THREE.NearestFilter,
+			(trans? THREE.RGBAFormat : THREE.RGBAFormat)
+		);
 		var material = new THREE.MeshBasicMaterial({
-			map: new THREE.Texture(
-				img,
-				new THREE.UVMapping(),
-				THREE.ClampToEdgeWrapping,
-				THREE.ClampToEdgeWrapping,
-				THREE.NearestFilter,
-				THREE.NearestFilter,
-				(trans? THREE.RGBAFormat : THREE.RGBFormat)
-			),
+			map: txt,
 			transparent: trans
 		});
 		material.map.needsUpdate = true;
 		return material;
 	};
-	var uvmap = function (mesh, face, x, y, w, h, rotateBy) {
-		if(!rotateBy) rotateBy = 0;
-		var uvs = mesh.geometry.faceVertexUvs[0][face];
-		var tileU = x;
-		var tileV = y;
+	var uvmap = function (mesh, face, x, y, w, h, rotateBy = 0) {
+		const tileU = x;
+		const tileV = y;
+		const u = [tileU * tileUvWidth, (tileU + w) * tileUvWidth];
+		const v = [1 - tileV * tileUvHeight, 1 - (tileV + h) * tileUvHeight];
+		const uvs = mesh.geometry.getAttribute('uv');
 		
-		uvs[ (0 + rotateBy) % 4 ].u = tileU * tileUvWidth;
-		uvs[ (0 + rotateBy) % 4 ].v = tileV * tileUvHeight;
-		uvs[ (1 + rotateBy) % 4 ].u = tileU * tileUvWidth;
-		uvs[ (1 + rotateBy) % 4 ].v = tileV * tileUvHeight + h * tileUvHeight;
-		uvs[ (2 + rotateBy) % 4 ].u = tileU * tileUvWidth + w * tileUvWidth;
-		uvs[ (2 + rotateBy) % 4 ].v = tileV * tileUvHeight + h * tileUvHeight;
-		uvs[ (3 + rotateBy) % 4 ].u = tileU * tileUvWidth + w * tileUvWidth;
-		uvs[ (3 + rotateBy) % 4 ].v = tileV * tileUvHeight;
+		for (let i = 0; i < 4; i++) {
+			uvs.setXY((i + rotateBy) % 4 + face * 4, u[i%2], v[Math.floor(i/2)] );
+		}
 	};
 	var cubeFromPlanes = function (size, mat) {
 		var cube = new THREE.Object3D();
 		var meshes = [];
-		for(var i=0; i < 6; i++) {
+		for (var i=0; i < 6; i++) {
 			var mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
 			mesh.doubleSided = true;
 			cube.add(mesh);
@@ -84,15 +81,18 @@ var skinview = function(global, undefined) {
 		}
 		// Front
 		meshes[0].rotation.x = Math.PI/2;
+		meshes[0].rotation.y = Math.PI/2;
 		meshes[0].rotation.z = -Math.PI/2;
 		meshes[0].position.x = size/2;
 		
 		// Back
 		meshes[1].rotation.x = Math.PI/2;
+		meshes[1].rotation.y = -Math.PI/2;
 		meshes[1].rotation.z = Math.PI/2;
 		meshes[1].position.x = -size/2;
 		
 		// Top
+		meshes[2].rotation.x = -Math.PI/2;
 		meshes[2].position.y = size/2;
 		
 		// Bottom
@@ -101,11 +101,9 @@ var skinview = function(global, undefined) {
 		meshes[3].position.y = -size/2;
 		
 		// Left
-		meshes[4].rotation.x = Math.PI/2;
 		meshes[4].position.z = size/2;
 		
 		// Right
-		meshes[5].rotation.x = -Math.PI/2;
 		meshes[5].rotation.y = Math.PI;
 		meshes[5].position.z = -size/2;
 		
@@ -127,10 +125,8 @@ var skinview = function(global, undefined) {
 	var upperbody = new THREE.Object3D();
 	
 	// Left leg
-	var leftleggeo = new THREE.CubeGeometry(4, 12, 4);
-	for(var i=0; i < 8; i+=1) {
-		leftleggeo.vertices[i].y -= 6;
-	}
+	const leftleggeo = new THREE.BoxGeometry(4, 12, 4);
+	leftleggeo.translate( 0, -4, 0 );
 	var leftleg = new THREE.Mesh(leftleggeo, charMaterial);
 	leftleg.position.z = -2;
 	leftleg.position.y = -6;
@@ -144,10 +140,8 @@ var skinview = function(global, undefined) {
 	
 	
 	// Right leg
-	var rightleggeo = new THREE.CubeGeometry(4, 12, 4);
-	for(var i=0; i < 8; i+=1) {
-		rightleggeo.vertices[i].y -= 6;
-	}
+	const rightleggeo = new THREE.BoxGeometry(4, 12, 4);
+	rightleggeo.translate( 0, -4, 0 );
 	var rightleg = new THREE.Mesh(rightleggeo, charMaterial);
 	rightleg.position.z = 2;
 	rightleg.position.y = -6;
@@ -161,7 +155,7 @@ var skinview = function(global, undefined) {
 	
 	
 	// Body
-	var bodygeo = new THREE.CubeGeometry(4, 12, 8);
+	var bodygeo = new THREE.BoxGeometry(4, 12, 8);
 	var bodymesh = new THREE.Mesh(bodygeo, charMaterial);
 	uvmap(bodymesh, 0, 20, 20, 8, 12);
 	uvmap(bodymesh, 1, 32, 20, 8, 12);
@@ -173,10 +167,8 @@ var skinview = function(global, undefined) {
 	
 	
 	// Left arm
-	var leftarmgeo = new THREE.CubeGeometry(4, 12, 4);
-	for(var i=0; i < 8; i+=1) {
-		leftarmgeo.vertices[i].y -= 4;
-	}
+	const leftarmgeo = new THREE.BoxGeometry(4, 12, 4);
+	leftarmgeo.translate( 0, -4, 0 );
 	var leftarm = new THREE.Mesh(leftarmgeo, charMaterial);
 	leftarm.position.z = -6;
 	leftarm.position.y = 4;
@@ -190,10 +182,8 @@ var skinview = function(global, undefined) {
 	upperbody.add(leftarm);
 	
 	// Right arm
-	var rightarmgeo = new THREE.CubeGeometry(4, 12, 4);
-	for(var i=0; i < 8; i+=1) {
-		rightarmgeo.vertices[i].y -= 4;
-	}
+	const rightarmgeo = new THREE.BoxGeometry(4, 12, 4);
+	rightarmgeo.translate( 0, -4, 0 );
 	var rightarm = new THREE.Mesh(rightarmgeo, charMaterial);
 	rightarm.position.z = 6;
 	rightarm.position.y = 4;
@@ -207,34 +197,17 @@ var skinview = function(global, undefined) {
 	upperbody.add(rightarm);
 	
 	//Head
-	var headgeo = new THREE.CubeGeometry(8, 8, 8);
+	var headgeo = new THREE.BoxGeometry(8, 8, 8);
 	var headmesh = new THREE.Mesh(headgeo, charMaterial);
 	headmesh.position.y = 2;
 	uvmap(headmesh, 0, 8, 8, 8, 8);
 	uvmap(headmesh, 1, 24, 8, 8, 8);
-	
 	uvmap(headmesh, 2, 8, 0, 8, 8, 1);
 	uvmap(headmesh, 3, 16, 0, 8, 8, 3);
-	
 	uvmap(headmesh, 4, 0, 8, 8, 8);
 	uvmap(headmesh, 5, 16, 8, 8, 8);
 	headgroup.add(headmesh);
-	
-	// Helmet/hat
-	/*var helmetgeo = new THREE.CubeGeometry(9, 9, 9);
-	var helmetmesh = new THREE.Mesh(helmetgeo, charMaterialTrans);
-	helmetmesh.doubleSided = true;
-	helmetmesh.position.y = 2;
-	uvmap(helmetmesh, 0, 32+8, 8, 8, 8);
-	uvmap(helmetmesh, 1, 32+24, 8, 8, 8);
-	
-	uvmap(helmetmesh, 2, 32+8, 0, 8, 8, 1);
-	uvmap(helmetmesh, 3, 32+16, 0, 8, 8, 3);
-	
-	uvmap(helmetmesh, 4, 32+0, 8, 8, 8);
-	uvmap(helmetmesh, 5, 32+16, 8, 8, 8);*/
-	//headgroup.add(helmetmesh);
-	
+
 	var helmet = cubeFromPlanes(9, charMaterialTrans);
 	helmet.position.y = 2;
 	uvmap(helmet.children[0], 0, 32+8, 8, 8, 8);
@@ -245,10 +218,10 @@ var skinview = function(global, undefined) {
 	uvmap(helmet.children[5], 0, 32+16, 8, 8, 8);
 	
 	headgroup.add(helmet);
-	
+
 	var ears = new THREE.Object3D();
 	
-	var eargeo = new THREE.CubeGeometry(1, (9/8)*6, (9/8)*6);
+	var eargeo = new THREE.BoxGeometry(1, (9/8)*6, (9/8)*6);
 	var leftear = new THREE.Mesh(eargeo, charMaterial);
 	var rightear = new THREE.Mesh(eargeo, charMaterial);
 	
@@ -261,10 +234,8 @@ var skinview = function(global, undefined) {
 	
 	uvmap(leftear, 0, 25, 1, 6, 6); // Front side
 	uvmap(leftear, 1, 32, 1, 6, 6); // Back side
-	
 	uvmap(leftear, 2, 25, 0, 6, 1, 1); // Top edge
 	uvmap(leftear, 3, 31, 0, 6, 1, 1); // Bottom edge
-	
 	uvmap(leftear, 4, 24, 1, 1, 6); // Left edge
 	uvmap(leftear, 5, 31, 1, 1, 6); // Right edge
 	
@@ -277,17 +248,15 @@ var skinview = function(global, undefined) {
 	headgroup.position.y = 8;
 	
 	var capeOrigo = new THREE.Object3D();
-	var capegeo = new THREE.CubeGeometry(1, 16, 10);
+	var capegeo = new THREE.BoxGeometry(1, 16, 10);
 	var capemesh = new THREE.Mesh(capegeo, capeMaterial);
 	capemesh.position.y = -8;
 	capemesh.visible = false;
 	
 	uvmap(capemesh, 0, 1, 1, 10, 16); // Front side
 	uvmap(capemesh, 1, 12, 1, 10, 16); // Back side
-	
 	uvmap(capemesh, 2, 1, 0, 10, 1); // Top edge
 	uvmap(capemesh, 3, 11, 0, 10, 1, 1); // Bottom edge
-	
 	uvmap(capemesh, 4, 0, 1, 1, 16); // Left edge
 	uvmap(capemesh, 5, 11, 1, 1, 16); // Right edge
 	
@@ -408,12 +377,13 @@ var skinview = function(global, undefined) {
 		renderer.render(scene, camera);
 	};
 	if(supportWebGL) {
-		var renderer = new THREE.WebGLRenderer({antialias: true});
+		var renderer = new THREE.WebGLRenderer({alpha: true});
 	}
 	else {
 		var renderer = new THREE.CanvasRenderer({antialias: true});
 	}
 	var threecanvas = renderer.domElement;
+	renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 	renderer.setSize(cw, ch);
 	//renderer.setClearColorHex(0x000000, 0.25);
 	container.appendChild(threecanvas);
@@ -534,7 +504,7 @@ var skinview = function(global, undefined) {
 	};
 	
 	skin.crossOrigin = 'anonymous';
-	skin.src = 'https://crafatar.com/skins/char';
+	skin.src = 'https://api.hypixel.pl/skinrender/minefox/texture/steve';
 	
 	var handleFiles = function (files) {
 		if(files.length > 0) {
@@ -590,7 +560,7 @@ var skinview = function(global, undefined) {
 	
 	return {
 		changeSkin: function (player) {
-			skin.src = 'https://crafatar.com/skins/' + player;
+			skin.src = 'https://api.hypixel.pl/skinrender/minefox/texture/' + player + '/64';
 		},
 		changeCape: function (url) {
 			cape.src = url;

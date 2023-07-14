@@ -1,26 +1,25 @@
 package io.github.dead_i.bungeeweb.api;
 
-import com.google.gson.Gson;
-import io.github.dead_i.bungeeweb.APICommand;
-import io.github.dead_i.bungeeweb.BungeeWeb;
-import net.md_5.bungee.api.plugin.Plugin;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.HashMap;
 
-public class GetSession extends APICommand {
-    private Gson gson = new Gson();
+import org.jetbrains.annotations.NotNull;
 
-    public GetSession() {
-        super("getsession", true);
+import io.github.dead_i.bungeeweb.APICommand;
+import io.github.dead_i.bungeeweb.BungeeWeb;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+public class GetSession extends APICommand {
+    
+	public GetSession(@NotNull BungeeWeb plugin) {
+        super(plugin, "getsession", true);
     }
 
     @Override
-    public void execute(Plugin plugin, HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
-        HashMap<String, Object> out = new HashMap<String, Object>();
+    public void execute(HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
+        HashMap<String, Object> out = new HashMap<>();
 
         Integer group = (Integer) req.getSession().getAttribute("group");
         if (group == null) {
@@ -29,12 +28,12 @@ public class GetSession extends APICommand {
             out.put("id", req.getSession().getAttribute("id"));
             out.put("user", req.getSession().getAttribute("user"));
             out.put("group", group);
-            out.put("updatetime", BungeeWeb.getConfig().getInt("server.updatetime", 10));
-            out.put("permissions", BungeeWeb.getGroupPermissions(group));
+            out.put("updatetime", this.plugin.getConfig().getInt("server.updatetime", 10));
+            out.put("permissions", this.plugin.getGroupPermissions(group));
         }
-        out.put("autosearch", BungeeWeb.getConfig().getBoolean("server.autosearch"));
-        out.put("transitions", !BungeeWeb.getConfig().getBoolean("server.disabletransitions"));
+        out.put("autosearch", this.plugin.getConfig().getBoolean("server.autosearch"));
+        out.put("transitions", !this.plugin.getConfig().getBoolean("server.disabletransitions"));
 
-        res.getWriter().print(gson.toJson(out));
+        res.getWriter().print(GSON_PARSER.toJson(out));
     }
 }

@@ -52,7 +52,7 @@ log:
   join: true
   quit: true
   kick: true
-  serverchange: true
+  server_change: true
 
 # Permissions for each group
 permissions:
