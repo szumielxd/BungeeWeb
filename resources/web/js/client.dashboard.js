@@ -18,48 +18,6 @@ pages.dashboard = (function() {
 	function navigate() {
 		// Retrieve initial graph data
 		getStatsData('', function(data) {
-			/*chart = new Highcharts.StockChart({
-				chart: { renderTo: 'graph-dashboard' },
-				series: data,
-				yAxis: { min: 0 },
-				rangeSelector: {
-					buttons: [
-						{
-							count: 1,
-							type: 'hour',
-							text: '1h'
-						},
-						{
-							count: 3,
-							type: 'hour',
-							text: '3h'
-						},
-						{
-							count: 1,
-							type: 'day',
-							text: '1d'
-						},
-						{
-							count: 1,
-							type: 'week',
-							text: '1w'
-						},
-						{
-							count: 2,
-							type: 'week',
-							text: '2w'
-						},
-						{
-							count: 1,
-							type: 'month',
-							text: '1m'
-						}
-					],
-					inputEnabled: true,
-					selected: 0
-				}
-			});*/
-			
 			chart = Highcharts.chart('graph-dashboard', {
 	            chart: {
 	                zoomType: 'x'

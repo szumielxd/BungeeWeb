@@ -55,6 +55,7 @@ public abstract class HikariDB {
 	public static final String TABLE_CHAT = PREFIX + "chat";
 	public static final String TABLE_COMMANDS = PREFIX + "commands";
 	public static final String TABLE_SERVERCHANGES = PREFIX + "serverchanges";
+	public static final String TABLE_TIME = PREFIX + "time";
 
 	public static final Pattern COMMAND_PATTERN = Pattern.compile("^/([^ ]*)( (.*))?$");
 
@@ -222,6 +223,18 @@ public abstract class HikariDB {
                     FOREIGN KEY (`target_server`) REFERENCES `%3$s` (`id`)
                 ) DEFAULT CHARSET=utf8mb4
                 """.formatted(TABLE_SERVERCHANGES, TABLE_LOGS, TABLE_SERVERS);
+		String createTime = """
+				CREATE TABLE IF NOT EXISTS `%1$s` (
+				    `session_id` int(10) unsigned NOT NULL,
+				    `server_id` int(10) unsigned NOT NULL,
+				    `time` datetime NOT NULL,
+				    `minutes` tinyint(4) unsigned NOT NULL,
+				    PRIMARY KEY (`session_id`,`server_id`,`time`),
+				    KEY (`time`),
+				    FOREIGN KEY (`session_id`) REFERENCES `%2$s` (`id`),
+				    FOREIGN KEY (`server_id`) REFERENCES `%3$s` (`id`)
+				    )
+				""".formatted(TABLE_TIME, TABLE_SESSIONS, TABLE_SERVERS);
 		
 		try (Connection conn = hikari.getConnection()) {
 			try (Statement stm = conn.createStatement()) {
@@ -234,6 +247,7 @@ public abstract class HikariDB {
 				stm.addBatch(createChats);
 				stm.addBatch(createCommands);
 				stm.addBatch(createSwitches);
+				stm.addBatch(createTime);
 				stm.executeBatch();
 			}
 		} catch (SQLException e) {

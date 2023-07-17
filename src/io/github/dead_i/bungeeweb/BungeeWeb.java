@@ -226,12 +226,10 @@ public class BungeeWeb extends Plugin {
     }
 
     public static boolean isNumber(String number) {
-        int o;
         try {
-            o = Integer.parseInt(number);
+            return Long.parseLong(number) >= 0;
         } catch (NumberFormatException ignored) {
             return false;
         }
-        return o >= 0;
     }
 }
