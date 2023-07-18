@@ -22,6 +22,7 @@ import io.github.dead_i.bungeeweb.api.ChangePassword;
 import io.github.dead_i.bungeeweb.api.CreateUser;
 import io.github.dead_i.bungeeweb.api.DeleteUser;
 import io.github.dead_i.bungeeweb.api.EditUser;
+import io.github.dead_i.bungeeweb.api.GetActivity;
 import io.github.dead_i.bungeeweb.api.GetLang;
 import io.github.dead_i.bungeeweb.api.GetLogs;
 import io.github.dead_i.bungeeweb.api.GetServers;
@@ -55,6 +56,7 @@ public class WebHandler extends AbstractHandler {
         registerCommand(new GetTypes(plugin));
         registerCommand(new GetUsers(plugin));
         registerCommand(new GetUUID(plugin));
+        registerCommand(new GetActivity(plugin));
         registerCommand(new ListServers(plugin));
     }
 
