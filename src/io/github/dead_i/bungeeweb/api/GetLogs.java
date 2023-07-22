@@ -32,6 +32,7 @@ import org.jetbrains.annotations.NotNull;
 
 import io.github.dead_i.bungeeweb.APICommand;
 import io.github.dead_i.bungeeweb.BungeeWeb;
+import io.github.dead_i.bungeeweb.ProtocolUtils;
 import io.github.dead_i.bungeeweb.hikari.HikariDB.LogType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -167,7 +168,7 @@ public class GetLogs extends APICommand {
 										new LogEntry.PlayerInfo(
 												bytesToUuid(rs.getBytes("uuid")),
 												rs.getString("username")),
-										rs.getInt("protocol_id"),
+										new LogEntry.ProtocolInfo(rs.getInt("protocol_id")),
 										rs.getString("ip"),
 										rs.getString("client"),
 										rs.getString("hostname")),
@@ -273,8 +274,14 @@ public class GetLogs extends APICommand {
 			return new ServerSwitchLogEntry(this.id, this.time, this.session, this.server, targetServer);
 		}
 		
+		public record ProtocolInfo(int id, String name) {
+			public ProtocolInfo(int protocolId) {
+				this(protocolId, ProtocolUtils.getProtocolName(protocolId)
+						.orElse("UNKNOWN(%d)".formatted(protocolId)));
+			}
+		};
 		
-		public record PlayerSession(@NotNull PlayerInfo player, int protocol, @NotNull String ip, @NotNull String client, @NotNull String hostname) {}
+		public record PlayerSession(@NotNull PlayerInfo player, ProtocolInfo protocol, @NotNull String ip, @NotNull String client, @NotNull String hostname) {}
 		
 		public record PlayerInfo(@NotNull UUID uuid, @NotNull String name) {}
 		
