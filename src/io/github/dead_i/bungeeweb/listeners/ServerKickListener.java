@@ -15,11 +15,11 @@ import net.md_5.bungee.event.EventHandler;
 
 @RequiredArgsConstructor
 public class ServerKickListener implements Listener {
-    
+	
 	@NonNull private final @NotNull BungeeWeb plugin;
 
-    @EventHandler
-    public void onServerKick(ServerKickEvent event) {
-    	this.plugin.getDatabaseManager().logPlayerKick(event.getPlayer(), Optional.ofNullable(event.getCancelServer()).map(ServerInfo::getName).orElse(""), ComponentSerializer.toString(event.getKickReasonComponent()));
-    }
+	@EventHandler
+	public void onServerKick(ServerKickEvent event) {
+		this.plugin.getDatabaseManager().logPlayerKick(event.getPlayer(), Optional.ofNullable(event.getCancelServer()).map(ServerInfo::getName).orElse(""), ComponentSerializer.toString(event.getKickReasonComponent()));
+	}
 }

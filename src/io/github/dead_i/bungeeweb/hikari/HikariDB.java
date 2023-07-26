@@ -8,7 +8,10 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,6 +28,7 @@ import com.zaxxer.hikari.HikariDataSource;
 
 import io.github.dead_i.bungeeweb.BungeeWeb;
 import io.github.dead_i.bungeeweb.PlayerInfoManager.PlayerSession;
+import io.github.dead_i.bungeeweb.PlayerInfoManager.PlayerSession.HourlyActivity.ActivityUpdateEntry;
 import io.github.dead_i.bungeeweb.SecureUtils;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
@@ -56,6 +60,7 @@ public abstract class HikariDB {
 	public static final String TABLE_COMMANDS = PREFIX + "commands";
 	public static final String TABLE_SERVERCHANGES = PREFIX + "serverchanges";
 	public static final String TABLE_TIME = PREFIX + "time";
+	public static final String TABLE_SERVER_STATS = PREFIX + "server_stats";
 
 	public static final Pattern COMMAND_PATTERN = Pattern.compile("^/([^ ]*)( (.*))?$");
 
@@ -132,97 +137,87 @@ public abstract class HikariDB {
 	}
 	
 	public void setupTables() {
-		String createStats = """
-                CREATE TABLE IF NOT EXISTS `%1$s` (
-                    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-                    `time` int(10) unsigned NOT NULL,
-                    `playercount` int(11) NOT NULL DEFAULT -1,
-                    `maxplayers` int(11) NOT NULL DEFAULT -1,
-                    `activity` int(11) NOT NULL DEFAULT -1,
-                    PRIMARY KEY (`id`)
-                )
-                """.formatted(TABLE_STATS);
-        String createUsers = """
-                CREATE TABLE IF NOT EXISTS `%1$s` (
-                    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-                    `user` varchar(16) NOT NULL,
-                    `pass` char(32) NOT NULL,
-                    `salt` char(16) NOT NULL,
-                    `group` tinyint(1) unsigned NOT NULL DEFAULT '1',
-                    PRIMARY KEY (`id`)
-                )
-                """.formatted(TABLE_USERS);
+		String createUsers = """
+				CREATE TABLE IF NOT EXISTS `%1$s` (
+				    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+				    `user` varchar(16) NOT NULL,
+				    `pass` char(32) NOT NULL,
+				    `salt` char(16) NOT NULL,
+				    `group` tinyint(1) unsigned NOT NULL DEFAULT '1',
+				    PRIMARY KEY (`id`)
+				)
+				""".formatted(TABLE_USERS);
 		String createServers = """
-                CREATE TABLE IF NOT EXISTS `%1$s` (
-                    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-                    `name` varchar(32) NOT NULL,
-                    PRIMARY KEY (`id`),
-                    UNIQUE KEY (`name`)
-                )
-                """.formatted(TABLE_SERVERS);
+				CREATE TABLE IF NOT EXISTS `%1$s` (
+				    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+				    `name` varchar(32) NOT NULL,
+				    PRIMARY KEY (`id`),
+				    UNIQUE KEY (`name`)
+				)
+				""".formatted(TABLE_SERVERS);
 		String createPlayers = """
-                CREATE TABLE IF NOT EXISTS `%1$s` (
-                    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-                    `uuid` binary(16) NOT NULL,
-                    `username` varchar(16) NOT NULL,
-                    PRIMARY KEY (`id`),
-                    UNIQUE KEY (`uuid`)
-                )
-                """.formatted(TABLE_PLAYERS);
+				CREATE TABLE IF NOT EXISTS `%1$s` (
+				    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+				    `uuid` binary(16) NOT NULL,
+				    `username` varchar(16) NOT NULL,
+				    PRIMARY KEY (`id`),
+				    UNIQUE KEY (`uuid`)
+				)
+				""".formatted(TABLE_PLAYERS);
 		String createSessions = """
-                CREATE TABLE IF NOT EXISTS `%1$s` (
-                    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-                    `player_id` int(10) unsigned NOT NULL,
-                    `protocol_id` smallint(5) unsigned NOT NULL,
-                    `ip_address` varbinary(16) NOT NULL,
-                    `client` varchar(32) NOT NULL DEFAULT 'UNKNOWN',
-                    `hostname` varchar(32) NOT NULL,
-                    PRIMARY KEY (`id`),
-                    KEY `ip_address` (`ip_address`),
-                    FOREIGN KEY (`player_id`) REFERENCES `%2$s` (`id`)
-                )
-                """.formatted(TABLE_SESSIONS, TABLE_PLAYERS);
+				CREATE TABLE IF NOT EXISTS `%1$s` (
+				    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+				    `player_id` int(10) unsigned NOT NULL,
+				    `protocol_id` smallint(5) unsigned NOT NULL,
+				    `ip_address` varbinary(16) NOT NULL,
+				    `client` varchar(32) NOT NULL DEFAULT 'UNKNOWN',
+				    `hostname` varchar(32) NOT NULL,
+				    PRIMARY KEY (`id`),
+				    KEY `ip_address` (`ip_address`),
+				    FOREIGN KEY (`player_id`) REFERENCES `%2$s` (`id`)
+				)
+				""".formatted(TABLE_SESSIONS, TABLE_PLAYERS);
 		String createLogs = """
-                CREATE TABLE IF NOT EXISTS `%1$s` (
-                    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-                    `time` datetime NOT NULL,
-                    `player_id` int(10) unsigned NOT NULL,
-                    `session_id` int(10) unsigned NOT NULL,
-                    `server_id` int(10) unsigned NOT NULL,
-                    `type` tinyint unsigned NOT NULL,
-                    PRIMARY KEY (`id`),
-                    FOREIGN KEY (`player_id`) REFERENCES `%2$s` (`id`),
-                    FOREIGN KEY (`server_id`) REFERENCES `%3$s` (`id`),
-                    FOREIGN KEY (`session_id`) REFERENCES `%4$s` (`id`)
-                )
-                """.formatted(TABLE_LOGS, TABLE_PLAYERS, TABLE_SERVERS, TABLE_SESSIONS);
+				CREATE TABLE IF NOT EXISTS `%1$s` (
+				    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+				    `time` datetime NOT NULL,
+				    `player_id` int(10) unsigned NOT NULL,
+				    `session_id` int(10) unsigned NOT NULL,
+				    `server_id` int(10) unsigned NOT NULL,
+				    `type` tinyint unsigned NOT NULL,
+				    PRIMARY KEY (`id`),
+				    FOREIGN KEY (`player_id`) REFERENCES `%2$s` (`id`),
+				    FOREIGN KEY (`server_id`) REFERENCES `%3$s` (`id`),
+				    FOREIGN KEY (`session_id`) REFERENCES `%4$s` (`id`)
+				)
+				""".formatted(TABLE_LOGS, TABLE_PLAYERS, TABLE_SERVERS, TABLE_SESSIONS);
 		String createChats = """
-                CREATE TABLE IF NOT EXISTS `%1$s` (
-                    `id` int(10) unsigned NOT NULL,
-                    `message` varchar(256) NOT NULL,
-                    PRIMARY KEY (`id`),
-                    FOREIGN KEY (`id`) REFERENCES `%2$s` (`id`)
-                ) DEFAULT CHARSET=utf8mb4
-                """.formatted(TABLE_CHAT, TABLE_LOGS);
+				CREATE TABLE IF NOT EXISTS `%1$s` (
+				    `id` int(10) unsigned NOT NULL,
+				    `message` varchar(256) NOT NULL,
+				    PRIMARY KEY (`id`),
+				    FOREIGN KEY (`id`) REFERENCES `%2$s` (`id`)
+				) DEFAULT CHARSET=utf8mb4
+				""".formatted(TABLE_CHAT, TABLE_LOGS);
 		String createCommands = """
-                CREATE TABLE IF NOT EXISTS `%1$s` (
-                    `id` int(10) unsigned NOT NULL,
-                    `command` varchar(255) NOT NULL,
-                    `arguments` varchar(256) NOT NULL,
-                    PRIMARY KEY (`id`),
-                    FOREIGN KEY (`id`) REFERENCES `%2$s` (`id`)
-                ) DEFAULT CHARSET=utf8mb4
-                """.formatted(TABLE_COMMANDS, TABLE_LOGS);
+				CREATE TABLE IF NOT EXISTS `%1$s` (
+				    `id` int(10) unsigned NOT NULL,
+				    `command` varchar(255) NOT NULL,
+				    `arguments` varchar(256) NOT NULL,
+				    PRIMARY KEY (`id`),
+				    FOREIGN KEY (`id`) REFERENCES `%2$s` (`id`)
+				) DEFAULT CHARSET=utf8mb4
+				""".formatted(TABLE_COMMANDS, TABLE_LOGS);
 		String createSwitches = """
-                CREATE TABLE IF NOT EXISTS `%1$s` (
-                    `id` int(10) unsigned NOT NULL,
-                    `target_server` int(10) unsigned NOT NULL,
-                    `extra` varchar(256) NOT NULL,
-                    PRIMARY KEY (`id`),
-                    FOREIGN KEY (`id`) REFERENCES `%2$s` (`id`),
-                    FOREIGN KEY (`target_server`) REFERENCES `%3$s` (`id`)
-                ) DEFAULT CHARSET=utf8mb4
-                """.formatted(TABLE_SERVERCHANGES, TABLE_LOGS, TABLE_SERVERS);
+				CREATE TABLE IF NOT EXISTS `%1$s` (
+				    `id` int(10) unsigned NOT NULL,
+				    `target_server` int(10) unsigned NOT NULL,
+				    `extra` varchar(256) NOT NULL,
+				    PRIMARY KEY (`id`),
+				    FOREIGN KEY (`id`) REFERENCES `%2$s` (`id`),
+				    FOREIGN KEY (`target_server`) REFERENCES `%3$s` (`id`)
+				) DEFAULT CHARSET=utf8mb4
+				""".formatted(TABLE_SERVERCHANGES, TABLE_LOGS, TABLE_SERVERS);
 		String createTime = """
 				CREATE TABLE IF NOT EXISTS `%1$s` (
 				    `session_id` int(10) unsigned NOT NULL,
@@ -235,10 +230,22 @@ public abstract class HikariDB {
 				    FOREIGN KEY (`server_id`) REFERENCES `%3$s` (`id`)
 				    )
 				""".formatted(TABLE_TIME, TABLE_SESSIONS, TABLE_SERVERS);
+		String createServerStats = """
+				CREATE TABLE IF NOT EXISTS `%1$s` (
+				    `server_id` int(10) unsigned NOT NULL,
+				    `time` datetime NOT NULL,
+				    `playercount` mediumint(8) unsigned NOT NULL DEFAULT 0,
+				    `maxplayers` mediumint(8) unsigned NOT NULL DEFAULT 0,
+				    `activity` mediumint(8) unsigned NOT NULL DEFAULT 0,
+				    PRIMARY KEY (`server_id`,`time`),
+				    KEY (`time`),
+				    KEY (`maxPlayers`),
+				    FOREIGN KEY (`server_id`) REFERENCES `%2$s` (`id`)
+				    )
+				""".formatted(TABLE_SERVER_STATS, TABLE_SERVERS);
 		
 		try (Connection conn = hikari.getConnection()) {
 			try (Statement stm = conn.createStatement()) {
-				stm.addBatch(createStats);
 				stm.addBatch(createUsers);
 				stm.addBatch(createServers);
 				stm.addBatch(createPlayers);
@@ -248,6 +255,7 @@ public abstract class HikariDB {
 				stm.addBatch(createCommands);
 				stm.addBatch(createSwitches);
 				stm.addBatch(createTime);
+				stm.addBatch(createServerStats);
 				stm.executeBatch();
 			}
 		} catch (SQLException e) {
@@ -257,30 +265,30 @@ public abstract class HikariDB {
 	
 	public boolean initialize() {
 		try (Connection db = this.hikari.getConnection()) {
-            if (db == null) {
-                this.plugin.getLogger().severe("BungeeWeb is disabling. Please check your database settings in your config.yml");
-                return false;
-            }
-            String prefix = this.plugin.getConfig().getString("database.prefix");
-            this.setupTables();
+			if (db == null) {
+				this.plugin.getLogger().severe("BungeeWeb is disabling. Please check your database settings in your config.yml");
+				return false;
+			}
+			String prefix = this.plugin.getConfig().getString("database.prefix");
+			this.setupTables();
 
-            try (ResultSet rs = db.createStatement().executeQuery(String.format("SELECT COUNT(*) FROM `%susers`", prefix))) {
-                while (rs.next()) if (rs.getInt(1) == 0) {
-                    String salt = SecureUtils.salt();
-                    try (PreparedStatement stm = db.prepareStatement(String.format("INSERT INTO `%susers` (`user`, `pass`, `salt`, `group`) VALUES('admin', ?, ?, 3)", prefix))) { 
-                        stm.setString(1, SecureUtils.encrypt("admin", salt));
-                        stm.setString(2, salt);
-                        stm.executeUpdate();
-                    }
-                    this.plugin.getLogger().warning("A new admin account has been created.");
-                    this.plugin.getLogger().warning("Both the username and password is 'admin'. Please change the password after first logging in.");
-                }
-            }
-        } catch (SQLException e) {
-        	this.plugin.getLogger().severe("Unable to connect to the database. Disabling...");
-            e.printStackTrace();
-            return false;
-        }
+			try (ResultSet rs = db.createStatement().executeQuery(String.format("SELECT COUNT(*) FROM `%susers`", prefix))) {
+				while (rs.next()) if (rs.getInt(1) == 0) {
+					String salt = SecureUtils.salt();
+					try (PreparedStatement stm = db.prepareStatement(String.format("INSERT INTO `%susers` (`user`, `pass`, `salt`, `group`) VALUES ('admin', ?, ?, 3)", prefix))) { 
+						stm.setString(1, SecureUtils.encrypt("admin", salt));
+						stm.setString(2, salt);
+						stm.executeUpdate();
+					}
+					this.plugin.getLogger().warning("A new admin account has been created.");
+					this.plugin.getLogger().warning("Both the username and password is 'admin'. Please change the password after first logging in.");
+				}
+			}
+		} catch (SQLException e) {
+			this.plugin.getLogger().severe("Unable to connect to the database. Disabling...");
+			e.printStackTrace();
+			return false;
+		}
 		this.tryUpgradeDatabaseSchema();
 		return true;
 	}
@@ -299,6 +307,19 @@ public abstract class HikariDB {
 					rs.next();
 					session.setId(rs.getLong(1));
 				}
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	public void setSessionClientBrand(PlayerSession session) {
+		try (Connection conn = this.hikari.getConnection()) {
+			String sql = "UPDATE `%1$s` SET `client` = ? WHERE `id` = ?".formatted(TABLE_SESSIONS);
+			try (PreparedStatement stm = conn.prepareStatement(sql)) {
+				stm.setString(1, session.getClient());
+				stm.setLong(2, session.getId());
+				stm.executeUpdate();
 			}
 		} catch (SQLException e) {
 			throw new RuntimeException(e);
@@ -356,25 +377,52 @@ public abstract class HikariDB {
 		}
 	}
 	
+	public void updateSessionTime(Collection<PlayerSession> sessions) {
+		List<ActivityUpdateEntry> activities = new LinkedList<>();
+		sessions.stream()
+				.map(PlayerSession::getActivity)
+				.map(PlayerSession.HourlyActivity::fetchAndClearActivityEntries)
+				.forEach(activities::addAll);
+		if (!activities.isEmpty()) {
+			String sql = "INSERT INTO `%1$s` (`session_id`, `server_id`, `time`, `minutes`) VALUES ".formatted(TABLE_TIME)
+					+ ", (?, ?, ?, ?)".repeat(activities.size()).substring(2)
+					+ " ON DUPLICATE KEY UPDATE `minutes` = `minutes` + VALUES(`minutes`)";
+			try (Connection conn = this.hikari.getConnection()) {
+				try (PreparedStatement stm = conn.prepareStatement(sql)) {
+					int i = 1;
+					for (ActivityUpdateEntry activity : activities) {
+						stm.setLong(i++, activity.sessionId());
+						stm.setLong(i++, activity.serverId());
+						stm.setTimestamp(i++, Timestamp.from(Instant.ofEpochSecond(activity.time())));
+						stm.setInt(i++, activity.minutes());
+					}
+					stm.executeUpdate();
+				}
+			} catch (SQLException e) {
+				throw new RuntimeException(e);
+			}
+		}
+	}
+	
 
 
-    public @NotNull Optional<UserProfile> getLogin(@Nullable String user, @Nullable String pass) {
-        if (user != null && pass != null) {
-        	try (Connection conn = this.hikari.getConnection()) {
-                try (PreparedStatement st = conn.prepareStatement(String.format("SELECT `id`, `user`, `group`, `pass`, `salt` FROM `%1$s` WHERE `user` = ?", TABLE_USERS))) {
-                    st.setString(1, user);
-                    try (ResultSet rs = st.executeQuery()) {
-                    	if (rs.next() && rs.getString(4).equals(SecureUtils.encrypt(pass, rs.getString(5)))) {
-                        	return Optional.of(new UserProfile(rs.getInt(1), rs.getString(2), rs.getInt(3)));
-                        }
-                    }
-                }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return Optional.empty();
-    }
+	public @NotNull Optional<UserProfile> getLogin(@Nullable String user, @Nullable String pass) {
+		if (user != null && pass != null) {
+			try (Connection conn = this.hikari.getConnection()) {
+				try (PreparedStatement st = conn.prepareStatement(String.format("SELECT `id`, `user`, `group`, `pass`, `salt` FROM `%1$s` WHERE `user` = ?", TABLE_USERS))) {
+					st.setString(1, user);
+					try (ResultSet rs = st.executeQuery()) {
+						if (rs.next() && rs.getString(4).equals(SecureUtils.encrypt(pass, rs.getString(5)))) {
+							return Optional.of(new UserProfile(rs.getInt(1), rs.getString(2), rs.getInt(3)));
+						}
+					}
+				}
+			} catch (SQLException e) {
+				throw new RuntimeException(e);
+			}
+		}
+		return Optional.empty();
+	}
 	
 	
 	public void logPlayerChat(@NotNull ProxiedPlayer player, String message) {

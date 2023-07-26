@@ -23,6 +23,7 @@ import io.github.dead_i.bungeeweb.commands.ReloadConfig;
 import io.github.dead_i.bungeeweb.hikari.HikariDB;
 import io.github.dead_i.bungeeweb.hikari.MariaDB;
 import io.github.dead_i.bungeeweb.hikari.MysqlDB;
+import io.github.dead_i.bungeeweb.listeners.ChannelListener;
 import io.github.dead_i.bungeeweb.listeners.ChatListener;
 import io.github.dead_i.bungeeweb.listeners.PlayerDisconnectListener;
 import io.github.dead_i.bungeeweb.listeners.PostLoginListener;
@@ -87,8 +88,9 @@ public class BungeeWeb extends Plugin {
         	return;
         }
         // Setup managers
-        this.playerInfoManager = new PlayerInfoManager(databaseManager);
+        this.playerInfoManager = new PlayerInfoManager(this);
         this.serverIdManager = new ServerIdManager(databaseManager);
+        this.playerInfoManager.start();
 
         // Start automatic chunking
         setupPurging("log");
@@ -100,13 +102,14 @@ public class BungeeWeb extends Plugin {
         getProxy().getPluginManager().registerListener(this, new PostLoginListener(this));
         getProxy().getPluginManager().registerListener(this, new ServerConnectedListener(this));
         getProxy().getPluginManager().registerListener(this, new ServerKickListener(this));
+        getProxy().getPluginManager().registerListener(this, new ChannelListener(this));
 
         // Register commands
         getProxy().getPluginManager().registerCommand(this, new ReloadConfig(this));
 
         // Graph loops
         int inc = getConfig().getInt("server.statscheck");
-        if (inc > 0) getProxy().getScheduler().schedule(this, new StatusCheck(this, inc), inc, inc, TimeUnit.SECONDS);
+        if (inc > 0) getProxy().getScheduler().schedule(this, new StatusCheck(this), inc, inc, TimeUnit.SECONDS);
 
         // Setup the context
         ContextHandler context = new ContextHandler("/");

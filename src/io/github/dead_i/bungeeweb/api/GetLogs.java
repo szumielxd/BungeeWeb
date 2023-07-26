@@ -19,7 +19,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +76,7 @@ public class GetLogs extends APICommand {
 				.flatMap(Stream::of)
 				.filter(UUID_PATTERN.asMatchPredicate())
 				.map(UUID::fromString)
+				.distinct()
 				.toList();
 		
 		// Servers
@@ -83,6 +84,8 @@ public class GetLogs extends APICommand {
 				.map(s -> s.split(","))
 				.stream()
 				.flatMap(Stream::of)
+				.map(String::toLowerCase)
+				.distinct()
 				.toList();
 		
 		// IPs
@@ -90,6 +93,8 @@ public class GetLogs extends APICommand {
 				.map(s -> s.split(","))
 				.stream()
 				.flatMap(Stream::of)
+				.map(String::toLowerCase)
+				.distinct()
 				.filter(IPV4_PATTERN.asMatchPredicate())
 				.toList();
 		
@@ -101,6 +106,7 @@ public class GetLogs extends APICommand {
 				.map(LogType::tryParse)
 				.filter(Optional::isPresent)
 				.map(Optional::get)
+				.distinct()
 				.toList();
 
 		// Chat message
@@ -139,7 +145,7 @@ public class GetLogs extends APICommand {
 				    LEFT JOIN  (SELECT `sc`.`id`, `name` as `target_server`, `extra` FROM `%7$s` as `sc`
 				        LEFT JOIN `%2$s` as `s` ON `sc`.`target_server` = `s`.`id`) as `sc` ON `l`.`id` = `sc`.`id`
 				    %8$s
-				    ORDER BY `id` DESC LIMIT ?
+				    ORDER BY `l`.`id` DESC LIMIT ?
 				""".formatted(TABLE_LOGS, TABLE_SERVERS, TABLE_SESSIONS, TABLE_PLAYERS, TABLE_CHAT, TABLE_COMMANDS, TABLE_SERVERCHANGES,
 						filters.isEmpty() ? "" : ("WHERE " + String.join(" AND ", filters)));
 		try (Connection conn = this.plugin.getDatabaseManager().connect()) {
@@ -159,7 +165,7 @@ public class GetLogs extends APICommand {
 				stm.setLong(i++, limit);
 				
 				try (ResultSet rs = stm.executeQuery()) {
-					Map<Long, LogEntry> logs = new HashMap<>();
+					Map<Long, LogEntry> logs = new LinkedHashMap<>();
 					while (rs.next()) {
 						long id = rs.getLong("id");
 						LogEntry log = new LogEntry(id,

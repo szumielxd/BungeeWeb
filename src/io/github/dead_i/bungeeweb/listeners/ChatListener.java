@@ -12,20 +12,20 @@ import net.md_5.bungee.event.EventHandler;
 
 @RequiredArgsConstructor
 public class ChatListener implements Listener {
-    
+	
 	@NonNull private final @NotNull BungeeWeb plugin;
 
-    @EventHandler
-    public void onChat(@NotNull ChatEvent event) {
-    	if (event.getSender() instanceof ProxiedPlayer player) {
-    		String msg = event.getMessage();
-            if (msg.startsWith("/")) {
-                if (!this.plugin.getConfig().getList("hiddencommands").contains(msg.split(" ")[0].substring(1).toLowerCase())) {
-                	this.plugin.getDatabaseManager().logPlayerCommand(player, msg);
-                }
-            } else {
-            	this.plugin.getDatabaseManager().logPlayerChat(player, msg);
-            }
-    	}
-    }
+	@EventHandler
+	public void onChat(@NotNull ChatEvent event) {
+		if (event.getSender() instanceof ProxiedPlayer player) {
+			String msg = event.getMessage();
+			if (msg.startsWith("/")) {
+				if (!this.plugin.getConfig().getList("hiddencommands").contains(msg.split(" ")[0].substring(1).toLowerCase())) {
+					this.plugin.getDatabaseManager().logPlayerCommand(player, msg);
+				}
+			} else {
+				this.plugin.getDatabaseManager().logPlayerChat(player, msg);
+			}
+		}
+	}
 }

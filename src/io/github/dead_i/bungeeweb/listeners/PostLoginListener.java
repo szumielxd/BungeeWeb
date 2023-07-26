@@ -14,8 +14,8 @@ public class PostLoginListener implements Listener {
 
 	@NonNull private final @NotNull BungeeWeb plugin;
 
-    @EventHandler
-    public void onPostLogin(@NotNull PostLoginEvent event) {
-        this.plugin.getDatabaseManager().logPlayerConnect(event.getPlayer());
-    }
+	@EventHandler
+	public void onPostLogin(@NotNull PostLoginEvent event) {
+		this.plugin.getDatabaseManager().logPlayerConnect(event.getPlayer());
+	}
 }
