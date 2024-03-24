@@ -1,0 +1,141 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<artifactId>proxyyweb-common</artifactId>
+	<parent>
+		<groupId>me.szumielxd</groupId>
+		<artifactId>proxyyweb-parent</artifactId>
+		<version>${revision}</version>
+	</parent>
+	<dependencies>
+		<dependency>
+			<groupId>me.carleslc.Simple-YAML</groupId>
+			<artifactId>Simple-Yaml</artifactId>
+			<scope>compile</scope>
+		</dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-server</artifactId>
+            <scope>compile</scope>
+        </dependency>
+		<dependency>
+			<groupId>net.kyori</groupId>
+			<artifactId>adventure-text-serializer-gson</artifactId>
+			<scope>compile</scope>
+		</dependency>
+		<dependency>
+			<groupId>net.kyori</groupId>
+			<artifactId>adventure-text-serializer-legacy</artifactId>
+			<scope>compile</scope>
+		</dependency>
+		<dependency>
+			<groupId>net.kyori</groupId>
+			<artifactId>adventure-text-minimessage</artifactId>
+			<scope>compile</scope>
+		</dependency>
+		<dependency>
+			<groupId>me.szumielxd</groupId>
+			<artifactId>legacy-miniadventure</artifactId>
+			<scope>compile</scope>
+		</dependency>
+		<dependency>
+			<groupId>me.szumielxd</groupId>
+			<artifactId>conditionsz-api</artifactId>
+			<scope>compile</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.netty</groupId>
+			<artifactId>netty-transport-native-unix-common</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.google.code.gson</groupId>
+			<artifactId>gson</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+		</dependency>	
+		<dependency>
+			<groupId>com.zaxxer</groupId>
+			<artifactId>HikariCP</artifactId>
+		</dependency>
+		<!-- Jetty -->
+		<dependency>
+			<groupId>org.eclipse.jetty</groupId>
+			<artifactId>jetty-server</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.eclipse.jetty</groupId>
+			<artifactId>jetty-servlet</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>javax.activation</groupId>
+			<artifactId>activation</artifactId>
+		</dependency>
+	</dependencies>
+	
+	<!-- Build -->
+	<build>
+		<defaultGoal>clean package</defaultGoal>
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>true</filtering>
+				<includes>
+					<include>**/*.java</include>
+					<include>plugin.yml</include>
+				</includes>
+			</resource>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>false</filtering>
+				<excludes>
+					<exclude>**/*.java</exclude>
+					<exclude>plugin.yml</exclude>
+				</excludes>
+			</resource>
+		</resources>
+	
+		<plugins>
+			<!-- Compiler plugin -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+			</plugin>
+			
+			<!-- Jar plugin -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+			</plugin>
+			
+			<!-- Shade plugin -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<configuration>
+					<relocations combine.children="append">
+						<relocation>
+							<pattern>net.kyori.adventure</pattern>
+							<shadedPattern>${package}.lib.adventure</shadedPattern>
+							<excludes>
+								<exclude>net.kyori.adventure.identity.*</exclude>
+							</excludes>
+						</relocation>
+						<relocation>
+							<pattern>net.kyori.examination</pattern>
+							<shadedPattern>${package}.lib.examination</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>org.simpleyaml</pattern>
+							<shadedPattern>${package}.lib.simpleyaml</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>org.yaml.snakeyaml</pattern>
+							<shadedPattern>${package}.lib.snakeyaml</shadedPattern>
+						</relocation>
+					</relocations>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+</project>

@@ -1,0 +1,105 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<artifactId>proxyyweb-bungee</artifactId>
+	<parent>
+		<groupId>me.szumielxd</groupId>
+		<artifactId>proxyyweb-parent</artifactId>
+		<version>${revision}</version>
+	</parent>
+	<dependencies>
+		<dependency>
+			<groupId>${project.groupId}</groupId>
+			<artifactId>proxyyweb-common</artifactId>
+			<scope>compile</scope>
+		</dependency>
+		<dependency>
+			<groupId>net.md-5</groupId>
+			<artifactId>bungeecord-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.kyori</groupId>
+			<artifactId>adventure-platform-bungeecord</artifactId>
+			<scope>compile</scope>
+		</dependency>
+		<dependency>
+			<groupId>dev.simplix</groupId>
+			<artifactId>protocolize-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+	</dependencies>
+	
+	<!-- Build -->
+	<build>
+		<defaultGoal>clean package</defaultGoal>
+		<finalName>/../../target/${project.artifactId}-${project.version}</finalName>
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>true</filtering>
+				<includes>
+					<include>**/*.java</include>
+					<include>bungee.yml</include>
+				</includes>
+			</resource>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>false</filtering>
+				<excludes>
+					<exclude>**/*.java</exclude>
+					<exclude>bungee.yml</exclude>
+				</excludes>
+			</resource>
+		</resources>
+	
+		<plugins>
+			<!-- Compiler plugin -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+			</plugin>
+			
+			<!-- Git Commit plugin -->
+			<plugin>
+				<groupId>io.github.git-commit-id</groupId>
+				<artifactId>git-commit-id-maven-plugin</artifactId>
+			</plugin>
+			
+			<!-- Assembly plugin -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-assembly-plugin</artifactId>
+			</plugin>
+			
+			<!-- Jar plugin -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+			</plugin>
+			
+			<!-- Shade plugin -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<configuration>
+					<relocations combine.children="append">
+						<relocation>
+							<pattern>me.szumielxd.legacyminiadventure</pattern>
+							<shadedPattern>${package}.lib.legacyminiadventure</shadedPattern>
+						</relocation>
+						<relocation>
+							<pattern>net.kyori.adventure</pattern>
+							<shadedPattern>${package}.lib.adventure</shadedPattern>
+							<excludes>
+								<exclude>net.kyori.adventure.identity.*</exclude>
+							</excludes>
+						</relocation>
+						<relocation>
+							<pattern>net.kyori.examination</pattern>
+							<shadedPattern>${package}.lib.examination</shadedPattern>
+						</relocation>
+					</relocations>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+</project>

@@ -1,0 +1,95 @@
+# BungeeWeb Configuration File
+
+# Server settings
+server:
+
+  # Port to run the server on
+  port: 8080
+
+  # Amount of time in seconds between status checks
+  # Set to -1 to disable all graphing
+  statscheck: 60
+
+  # Default language to use, loaded from the "lang" directory
+  language: en
+
+  # The name of the theme to use, excluding the file extension
+  # Set to "dark", "light", or the name of any theme in the "themes" directory
+  theme: dark_new
+  
+  # Amount of time between automatic page updates
+  updatetime: 10
+
+  # Amount of days that records will be kept for
+  # Set to -1 to disable database purging of that type
+  logsdays: 30
+  statsdays: 30
+
+  # Amount of minutes between purges
+  # Set to -1 to disable all database purging
+  purge: 10
+
+  # Whether searches should be executed as you type on the log page
+  autosearch: false
+
+  # Whether page transitions should be disabled
+  disabletransitions: false
+  
+  # Whether log web actions to special file
+  log-requests: true
+
+# MySQL details
+database:
+  mode: MySQL # available: [MySQL,MariaDB]
+  host: 127.0.0.1
+  port: 3306
+  user: bungeeweb
+  pass: password
+  db: bungeeweb
+  prefix: bungeeweb_
+
+# Logged items
+log:
+  chat: true
+  command: true
+  join: true
+  quit: true
+  kick: true
+  server_change: true
+
+# Permissions for each group
+permissions:
+  group1: # moderator
+    - dashboard
+    - stats
+    - clients
+    - logs
+    - activity
+    - players
+    - settings.password
+  group2: # admin
+    - console.view
+    - settings.users.list
+    - settings.users.edit
+  group3: # superadmin
+    - console.execute
+    - settings.users.create
+    - settings.users.delete
+
+# Sensitive commands that will never be logged
+hiddencommands:
+  - login
+
+blackoutwebcommands:
+  - login
+  - l
+  - register
+  - reg
+  - changepassword
+
+# Graphed items
+stats:
+  playercount: true
+  maxplayers: true
+  activity: true
+  clientcount: true
