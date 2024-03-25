@@ -40,7 +40,7 @@ var skinview = function(global, undefined) {
 	var isRotating = false;
 	var isPaused = false;
 	var isYfreezed = false;
-	var isFunnyRunning = false;
+	var isFunnyRunning = true;
 	
 	var getMaterial = function (img, trans) {
 		const txt = new THREE.Texture(
@@ -303,14 +303,19 @@ var skinview = function(global, undefined) {
 	var counter = 0;
 	var firstRender = true;
 	
-	var startTime = Date.now();
-	var pausedTime = 0;
+	const startTime = window.performance.now();
+	const fpsCooldown = 1000/24; // 30fps
+	let lastFrameTime = 0;
+	let pausedTime = 0;
 	
-	var render = function () {
-		requestAnimFrame(render, renderer.domElement);
-		var oldRad = rad;
-		
-		var time = (Date.now() - startTime)/1000;
+	var render = async function () {
+		const now = window.performance.now();
+		requestAnimFrame(render, renderer.domElement); // 24fps
+		if (now - lastFrameTime < fpsCooldown) {
+			return;
+		}
+		lastFrameTime = now;
+		const time = (now - startTime)/1000;
 		
 		if(!isMouseDown) {
 			//mouseX*=0.95;
@@ -377,7 +382,7 @@ var skinview = function(global, undefined) {
 		renderer.render(scene, camera);
 	};
 	if(supportWebGL) {
-		var renderer = new THREE.WebGLRenderer({alpha: true});
+		var renderer = new THREE.WebGLRenderer({alpha: true, antialias: false, precision: "lowp", powerPreference: "low-power"});
 	}
 	else {
 		var renderer = new THREE.CanvasRenderer({antialias: true});
@@ -385,7 +390,6 @@ var skinview = function(global, undefined) {
 	var threecanvas = renderer.domElement;
 	renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 	renderer.setSize(cw, ch);
-	//renderer.setClearColorHex(0x000000, 0.25);
 	container.appendChild(threecanvas);
 	
 	var onMouseMove = function (e) {
@@ -504,7 +508,7 @@ var skinview = function(global, undefined) {
 	};
 	
 	skin.crossOrigin = 'anonymous';
-	skin.src = 'https://api.hypixel.pl/skinrender/minefox/texture/steve';
+	skin.src = session.defaultSkinUrl;
 	
 	var handleFiles = function (files) {
 		if(files.length > 0) {
@@ -559,8 +563,8 @@ var skinview = function(global, undefined) {
 	}, false);
 	
 	return {
-		changeSkin: function (player) {
-			skin.src = 'https://api.hypixel.pl/skinrender/minefox/texture/' + player + '/64';
+		changeSkin: function (uuid, username) {
+			skin.src = session.skinsUrl.replace('{uuid}', uuid).replace('{username}', username);
 		},
 		changeCape: function (url) {
 			cape.src = url;

@@ -33,6 +33,8 @@ public class GetSession extends APICommand {
         }
         out.put("autosearch", this.plugin.getConfig().getBoolean("server.autosearch"));
         out.put("transitions", !this.plugin.getConfig().getBoolean("server.disabletransitions"));
+        out.put("skinsUrl", this.plugin.getConfig().getString("server.skins-url"));
+        out.put("defaultSkinUrl", this.plugin.getConfig().getString("server.default-skin-url"));
 
         res.getWriter().print(GSON_PARSER.toJson(out));
     }

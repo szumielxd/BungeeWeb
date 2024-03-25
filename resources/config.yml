@@ -34,6 +34,9 @@ server:
 
   # Whether page transitions should be disabled
   disabletransitions: false
+  
+  skins-url: "https://example.com/{uuid}/{username}"
+  default-skin-url: "https://example.com/steve"
 
 # MySQL details
 database:

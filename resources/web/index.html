@@ -2,59 +2,113 @@
 <html>
 	<head>
 		<title>BungeeWeb</title>
+		<link href="favicon.ico" rel="icon" type="image/png" />
 		<link href="css/style.css" rel="stylesheet" type="text/css" />
+		<link href="css/highcharts.css" rel="stylesheet" type="text/css" />
 		<link href="css/theme.css" rel="stylesheet" type="text/css" />
 	</head>
 	
 	<body>
 		<noscript>This page requires JavaScript in order to function. Please enable JavaScript and try again.</noscript>
 		<div class="errorbar"></div>
+		<textarea id="copied-content" name="copied-content"></textarea>
 		
 		<div class="mask">
-			<div class="dialog" id="playerinfo">
-				<div class="info">
-					<a class="close"><img src="images/close.png" alt="close" /></a>
-					<div id="skinpreview"></div>
-					<div class="attribute">
-						<h3 data-lang="general.username" class="langcaps">:</h3>
-						<h1 data-lang="players.title"></h1>
+			<div class="dialog-box">
+				<div class="dialog" id="playerinfo" scroll-method="addPlayerLogs">
+					<a class="close"><img src="images/close.png"></a>
+					<div class="logs-box">
+						<div class="logs scrollable">
+							<div class="filters">
+								<div class="label" data-lang="logs.filter">:</div>
+							</div>
+							<form class="extra-filters">
+								<div class="chat-filters">
+									<div>
+										<label for="message">Message: </label>
+										<input type="text" name="message" placeholder="Message RegEx" />
+									</div>
+								</div>
+								<div class="command-filters">
+									<div>
+										<label for="command">Command: </label>
+										<input type="text" name="command" placeholder="Commands" />
+									</div>
+									<div>
+										<label for="arguments">Arguments: </label>
+										<input type="text" name="arguments" placeholder="Arguments RegEx" />
+									</div>
+								</div>
+								<button type="submit" style="display: none"></button>
+							</form>
+							<ul class="log"></ul>
+						</div>
 					</div>
-					<div class="attribute">
-						<h3 data-lang="general.uuid" class="langcaps">:</h3>
-						<h2 class="uuid"></h2>
+					<div class="resizer" target=".dialog .info"></div>
+					<div class="info-box">
+						<div class="info scrollable">
+							<div id="skinpreview"></div>
+							<div class="attribute">
+								<h3 data-lang="general.username" class="langcaps">:</h3>
+								<h1 data-lang="players.title"></h1>
+							</div>
+							<div class="attribute">
+								<h3 data-lang="general.uuid" class="langcaps">:</h3>
+								<h2 class="uuid"></h2>
+							</div>
+							<div class="attribute">
+								<h3 data-lang="general.activity" class="langcaps">:</h3>
+								<h2>Visible time: <b id="sum-player-activity-chart">0m</b></h2>
+								<div id="graph-player-activity-chart"></div>
+								<div id="graph-player-activity-pie"></div>
+							</div>
+						</div>
 					</div>
 				</div>
-				<div class="logs">
-					<form class="search">
-						<input type="text" placeholder="Search logs..." />
-					</form>
-					<div class="filters">
-						<div class="label" data-lang="logs.filter">:</div>
+				<div class="dialog" id="serverinfo" scroll-method="addServerLogs">
+					<a class="close"><img src="images/close.png"></a>
+					<div class="logs-box">
+						<div class="logs scrollable">
+							<div class="filters">
+								<div class="label" data-lang="logs.filter">:</div>
+							</div>
+							<form class="extra-filters">
+								<div class="chat-filters">
+									<div>
+										<label for="message">Message: </label>
+										<input type="text" name="message" placeholder="Message RegEx" />
+									</div>
+								</div>
+								<div class="command-filters">
+									<div>
+										<label for="command">Command: </label>
+										<input type="text" name="command" placeholder="Commands" />
+									</div>
+									<div>
+										<label for="arguments">Arguments: </label>
+										<input type="text" name="arguments" placeholder="Arguments RegEx" />
+									</div>
+								</div>
+								<button type="submit" style="display: none"></button>
+							</form>
+							<ul class="log"></ul>
+						</div>
 					</div>
-					<ul class="log"></ul>
-				</div>
-			</div>
-			<div class="dialog" id="serverinfo">
-				<div class="info">
-					<a class="close"><img src="images/close.png" alt="close" /></a>
-					<div id="skinpreview"></div>
-					<div class="attribute">
-						<h3 data-lang="general.username" class="langcaps">:</h3>
-						<h1 data-lang="players.title"></h1>
+					<div class="resizer" target=".dialog .info"></div>
+					<div class="info-box">
+						<div class="info scrollable">
+							<div class="attribute">
+								<h3 data-lang="general.servername" class="langcaps">:</h3>
+								<h1 data-lang="players.title"></h1>
+							</div>
+							<div class="attribute">
+								<h3 data-lang="general.activity" class="langcaps">:</h3>
+								<h2>Visible time: <b id="sum-activity-chart">0m</b></h2>
+								<div id="graph-activity-chart"></div>
+								<div id="graph-activity-pie"></div>
+							</div>
+						</div>
 					</div>
-					<div class="attribute">
-						<h3 data-lang="general.uuid" class="langcaps">:</h3>
-						<h2 class="uuid"></h2>
-					</div>
-				</div>
-				<div class="logs">
-					<form class="search">
-						<input type="text" placeholder="Search logs..." />
-					</form>
-					<div class="filters">
-						<div class="label" data-lang="logs.filter">:</div>
-					</div>
-					<ul class="log"></ul>
 				</div>
 			</div>
 		</div>
@@ -64,10 +118,10 @@
 				<div class="container">
 					<h1>BungeeWeb</h1>
 					<div class="right">
-						<a href="/dashboard" data-permission="dashboard" class="active"><img src="images/dashboard.png" alt="dashboard" /><span data-lang="dashboard.title"></span></a>
-						<a href="/logs" data-permission="logs"><img src="images/logs.png" alt="logo" /><span data-lang="logs.title"></span></a>
-						<a href="/players" data-permission="players"><img src="images/players.png" alt="players" /><span data-lang="players.title"></span></a>
-						<a href="#dropdown"><img src="images/logout.png" alt="logout" /><span data-lang="dropdown.title"></span></a>
+						<a href="/dashboard" data-permission="dashboard" class="active"><img src="images/dashboard.png" /><span data-lang="dashboard.title"></span></a>
+						<a href="/logs" data-permission="logs"><img src="images/logs.png" /><span data-lang="logs.title"></span></a>
+						<a href="/players" data-permission="players"><img src="images/players.png" /><span data-lang="players.title"></span></a>
+						<a href="#dropdown"><img src="images/logout.png" /><span data-lang="dropdown.title"></span></a>
 					</div>
 				</div>
 			</div>
@@ -87,13 +141,13 @@
 					<div class="half">
 						<div class="inner servers">
 							<h1 data-lang="dashboard.servers"> <span></span></h1>
-							<ul class="log"></ul>
+							<div class="content-box"><ul class="log"></ul></div>
 						</div>
 					</div>
 					<div class="half">
 						<div class="inner logs">
 							<h1 data-lang="dashboard.latestlogs"> <span></span></h1>
-							<ul class="log"></ul>
+							<div class="content-box"><ul class="log"></ul></div>
 						</div>
 					</div>
 				</div>
@@ -104,12 +158,34 @@
 			
 			<div id="logs" class="container">
 				<h1 data-lang="logs.latestlogs"></h1>
-				<form class="search">
-					<input type="text" placeholder="Search logs..." />
+				<form class="query-filters">
+					<input type="text" name="usernames" placeholder="Filter users..." />
+					<input type="text" name="servers" placeholder="Filter servers..." />
+					<input type="text" name="ips" placeholder="Filter IPs..." />
+					<button type="submit" style="display: none"></button>
 				</form>
 				<div class="filters">
 					<div class="label" data-lang="logs.filter">:</div>
 				</div>
+				<form class="extra-filters">
+					<div class="chat-filters">
+						<div>
+							<label for="message">Message: </label>
+							<input type="text" name="message" placeholder="Message RegEx" />
+						</div>
+					</div>
+					<div class="command-filters">
+						<div>
+							<label for="command">Command: </label>
+							<input type="text" name="command" placeholder="Commands" />
+						</div>
+						<div>
+							<label for="arguments">Arguments: </label>
+							<input type="text" name="arguments" placeholder="Arguments RegEx" />
+						</div>
+					</div>
+					<button type="submit" style="display: none"></button>
+				</form>
 				<ul class="log"></ul>
 			</div>
 			
@@ -152,7 +228,7 @@
 				</form>
 			</div>
 			
-			<footer><p class="footer">Powered by BungeeWeb - &copy; 2014 Dead-i</p></footer>
+			<footer><p class="footer">Powered by BungeeWeb - &copy; 2023 Dead-i, szumielxd_</p></footer>
 		</div>
 		
 		<div class="login">
@@ -171,15 +247,16 @@
 			</div>
 		</div>
 		
-		<script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
-		<script src="http://code.highcharts.com/stock/highstock.js"></script>
+		<script src="https://code.jquery.com/jquery-3.7.0.min.js" integrity="sha256-2Pmvv0kuTBOenSvLm6bvfBSSHrUJ+3A7x6P5Ebd07/g=" crossorigin="anonymous"></script>
+		<script src="https://code.highcharts.com/stock/highstock.js"></script>
+		<script src="https://code.highcharts.com/modules/boost.js"></script>
 		<script src="js/three.min.js"></script>
-		<script src="js/skinviewer.js"></script>
 		<script src="js/client.js"></script>
 		<script src="js/client.dashboard.js"></script>
 		<script src="js/client.logs.js"></script>
 		<script src="js/client.players.js"></script>
 		<script src="js/client.account.js"></script>
 		<script src="js/client.settings.js"></script>
+		<script src="js/skinviewer.js"></script>
 	</body>
 </html>

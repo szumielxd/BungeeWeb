@@ -24,6 +24,8 @@ import net.md_5.bungee.api.scheduler.ScheduledTask;
 
 @RequiredArgsConstructor
 public class PlayerInfoManager {
+	
+	public static final @NotNull String DEFAULT_CLIENT = "UNKNOWN";
 
 	private final @NotNull Map<UUID, PlayerSession> sessions = new ConcurrentHashMap<>();
 	private final @NotNull Map<UUID, Long> playerIds = new ConcurrentHashMap<>();
@@ -132,7 +134,7 @@ public class PlayerInfoManager {
 		private final long playerId;
 		private final int protocol;
 		private final @NotNull String ip;
-		private @NotNull String client = "UNKNOWN";
+		private @NotNull String client = DEFAULT_CLIENT;
 		private final @NotNull String hostname;
 		private final @NotNull HourlyActivity activity = new HourlyActivity();
 		@Setter private @NotNull Optional<Long> expiration = Optional.empty();

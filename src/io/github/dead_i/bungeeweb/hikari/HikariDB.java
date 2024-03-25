@@ -53,6 +53,7 @@ public abstract class HikariDB {
 	public static final String TABLE_STATS = PREFIX + "stats";
 	public static final String TABLE_USERS = PREFIX + "users";
 	public static final String TABLE_SERVERS = PREFIX + "servers";
+	public static final String TABLE_CLIENTS = PREFIX + "clients";
 	public static final String TABLE_PLAYERS = PREFIX + "players";
 	public static final String TABLE_SESSIONS = PREFIX + "player_sessions";
 	public static final String TABLE_LOGS = PREFIX + "logs";
@@ -61,6 +62,7 @@ public abstract class HikariDB {
 	public static final String TABLE_SERVERCHANGES = PREFIX + "serverchanges";
 	public static final String TABLE_TIME = PREFIX + "time";
 	public static final String TABLE_SERVER_STATS = PREFIX + "server_stats";
+	public static final String TABLE_CLIENT_STATS = PREFIX + "client_stats";
 
 	public static final Pattern COMMAND_PATTERN = Pattern.compile("^/([^ ]*)( (.*))?$");
 
@@ -122,7 +124,7 @@ public abstract class HikariDB {
 		return this;
 	}
 	
-	public void tryUpgradeDatabaseSchema() {
+	/*public void tryUpgradeDatabaseSchema() {
 		if (checkTableExistence(TABLE_OLD_LOG)) {
 			this.plugin.getLogger().info("Detected old database schema. Upgrading to new format...");
 			new DatabaseFormatMigration(this.hikari, this.plugin).migrate();
@@ -134,7 +136,7 @@ public abstract class HikariDB {
 				}
 			}
 		}
-	}
+	}*/
 	
 	public void setupTables() {
 		String createUsers = """
@@ -155,6 +157,14 @@ public abstract class HikariDB {
 				    UNIQUE KEY (`name`)
 				)
 				""".formatted(TABLE_SERVERS);
+		String createClients = """
+				CREATE TABLE IF NOT EXISTS `%1$s` (
+				    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+				    `name` varchar(50) NOT NULL,
+				    PRIMARY KEY (`id`),
+				    UNIQUE KEY (`name`)
+				)
+				""".formatted(TABLE_CLIENTS);
 		String createPlayers = """
 				CREATE TABLE IF NOT EXISTS `%1$s` (
 				    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -170,13 +180,14 @@ public abstract class HikariDB {
 				    `player_id` int(10) unsigned NOT NULL,
 				    `protocol_id` smallint(5) unsigned NOT NULL,
 				    `ip_address` varbinary(16) NOT NULL,
-				    `client` varchar(32) NOT NULL DEFAULT 'UNKNOWN',
+				    `client_id` int(10) unsigned NOT NULL,
 				    `hostname` varchar(32) NOT NULL,
 				    PRIMARY KEY (`id`),
 				    KEY `ip_address` (`ip_address`),
-				    FOREIGN KEY (`player_id`) REFERENCES `%2$s` (`id`)
+				    FOREIGN KEY (`player_id`) REFERENCES `%2$s` (`id`),
+				    FOREIGN KEY (`client_id`) REFERENCES `%2$s` (`id`)
 				)
-				""".formatted(TABLE_SESSIONS, TABLE_PLAYERS);
+				""".formatted(TABLE_SESSIONS, TABLE_PLAYERS, TABLE_CLIENTS);
 		String createLogs = """
 				CREATE TABLE IF NOT EXISTS `%1$s` (
 				    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -243,11 +254,26 @@ public abstract class HikariDB {
 				    FOREIGN KEY (`server_id`) REFERENCES `%2$s` (`id`)
 				    )
 				""".formatted(TABLE_SERVER_STATS, TABLE_SERVERS);
+		String createClientStats = """
+				CREATE TABLE IF NOT EXISTS `%1$s` (
+				    `server_id` int(10) unsigned NOT NULL,
+				    `client_id` int(10) unsigned NOT NULL,
+				    `time` datetime NOT NULL,
+				    `playercount` mediumint(8) unsigned NOT NULL DEFAULT 0,
+				    PRIMARY KEY (`server_id`,`client_id`,`time`),
+				    KEY (`time`),
+				    KEY (`client_id`),
+				    FOREIGN KEY (`server_id`) REFERENCES `%2$s` (`id`),
+				    FOREIGN KEY (`client_id`) REFERENCES `%3$s` (`id`)
+				    )
+				""".formatted(TABLE_CLIENT_STATS, TABLE_SERVERS, TABLE_CLIENTS);
+				
 		
 		try (Connection conn = hikari.getConnection()) {
 			try (Statement stm = conn.createStatement()) {
 				stm.addBatch(createUsers);
 				stm.addBatch(createServers);
+				stm.addBatch(createClients);
 				stm.addBatch(createPlayers);
 				stm.addBatch(createSessions);
 				stm.addBatch(createLogs);
@@ -256,6 +282,7 @@ public abstract class HikariDB {
 				stm.addBatch(createSwitches);
 				stm.addBatch(createTime);
 				stm.addBatch(createServerStats);
+				stm.addBatch(createClientStats);
 				stm.executeBatch();
 			}
 		} catch (SQLException e) {
@@ -272,8 +299,11 @@ public abstract class HikariDB {
 			String prefix = this.plugin.getConfig().getString("database.prefix");
 			this.setupTables();
 
-			try (ResultSet rs = db.createStatement().executeQuery(String.format("SELECT COUNT(*) FROM `%susers`", prefix))) {
-				while (rs.next()) if (rs.getInt(1) == 0) {
+			String sql = String.format("SELECT COUNT(*) FROM `%susers`", prefix);
+			this.plugin.getLogger().info(() -> "SQL: %s".formatted(sql));
+			
+			try (ResultSet rs = db.createStatement().executeQuery(sql)) {
+				if (rs.next() && rs.getInt(1) == 0) {
 					String salt = SecureUtils.salt();
 					try (PreparedStatement stm = db.prepareStatement(String.format("INSERT INTO `%susers` (`user`, `pass`, `salt`, `group`) VALUES ('admin', ?, ?, 3)", prefix))) { 
 						stm.setString(1, SecureUtils.encrypt("admin", salt));
@@ -289,18 +319,19 @@ public abstract class HikariDB {
 			e.printStackTrace();
 			return false;
 		}
-		this.tryUpgradeDatabaseSchema();
+		//this.tryUpgradeDatabaseSchema();
 		return true;
 	}
 	
 	public void insertPlayerSession(PlayerSession session) {
 		try (Connection conn = this.hikari.getConnection()) {
-			String sql = "INSERT INTO `%1$s` (`player_id`, `protocol_id`, `ip_address`, `client`, `hostname`) VALUES (?, ?, INET6_ATON(?), ?, ?)".formatted(TABLE_SESSIONS);
+			String sql = "INSERT INTO `%1$s` (`player_id`, `protocol_id`, `ip_address`, `client_id`, `hostname`) VALUES (?, ?, INET6_ATON(?), ?, ?)".formatted(TABLE_SESSIONS);
 			try (PreparedStatement stm = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+				long client = this.plugin.getClientIdManager().getClientId(session.getClient());
 				stm.setLong(1, session.getPlayerId());
 				stm.setInt(2, session.getProtocol());
 				stm.setString(3, session.getIp());
-				stm.setString(4, session.getClient());
+				stm.setLong(4, client);
 				stm.setString(5, session.getHostname());
 				stm.executeUpdate();
 				try (ResultSet rs = stm.getGeneratedKeys()) {
@@ -315,9 +346,10 @@ public abstract class HikariDB {
 	
 	public void setSessionClientBrand(PlayerSession session) {
 		try (Connection conn = this.hikari.getConnection()) {
-			String sql = "UPDATE `%1$s` SET `client` = ? WHERE `id` = ?".formatted(TABLE_SESSIONS);
+			String sql = "UPDATE `%1$s` SET `client_id` = ? WHERE `id` = ?".formatted(TABLE_SESSIONS);
 			try (PreparedStatement stm = conn.prepareStatement(sql)) {
-				stm.setString(1, session.getClient());
+				long client = this.plugin.getClientIdManager().getClientId(session.getClient());
+				stm.setLong(1, client);
 				stm.setLong(2, session.getId());
 				stm.executeUpdate();
 			}
@@ -366,6 +398,31 @@ public abstract class HikariDB {
 			String insert = "INSERT INTO `%1$s` (`name`) VALUES (?)".formatted(TABLE_SERVERS);
 			try (PreparedStatement stm = conn.prepareStatement(insert, Statement.RETURN_GENERATED_KEYS)) {
 				stm.setString(1, serverName);
+				stm.executeUpdate();
+				try (ResultSet rs = stm.getGeneratedKeys()) {
+					rs.next();
+					return rs.getLong(1);
+				}
+			}
+		} catch (SQLException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	public long getOrCreateClientId(String clientName) {
+		try (Connection conn = this.hikari.getConnection()) {
+			String select = "SELECT `id` FROM `%1$s` WHERE `name` = ?".formatted(TABLE_CLIENTS);
+			try (PreparedStatement stm = conn.prepareStatement(select)) {
+				stm.setString(1, clientName);
+				try (ResultSet rs = stm.executeQuery()) {
+					if (rs.next()) {
+						return rs.getLong(1);
+					}
+				}
+			}
+			String insert = "INSERT INTO `%1$s` (`name`) VALUES (?)".formatted(TABLE_CLIENTS);
+			try (PreparedStatement stm = conn.prepareStatement(insert, Statement.RETURN_GENERATED_KEYS)) {
+				stm.setString(1, clientName);
 				stm.executeUpdate();
 				try (ResultSet rs = stm.getGeneratedKeys()) {
 					rs.next();
@@ -543,7 +600,7 @@ public abstract class HikariDB {
 	
 	
 	
-	private boolean checkTableExistence(String table) {
+	/*private boolean checkTableExistence(String table) {
 		try (Connection conn = this.hikari.getConnection()) {
 			try (PreparedStatement stm = conn.prepareStatement("SHOW TABLES LIKE ?")) {
 				stm.setString(1, table);
@@ -567,7 +624,7 @@ public abstract class HikariDB {
 		} catch (SQLException e) {
 			throw new RuntimeException(e);
 		}
-	}
+	}*/
 	
 	/**
 	 * Modify and setup connection properties.

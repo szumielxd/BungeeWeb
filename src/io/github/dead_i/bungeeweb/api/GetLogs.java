@@ -2,6 +2,7 @@ package io.github.dead_i.bungeeweb.api;
 
 import static io.github.dead_i.bungeeweb.hikari.HikariDB.TABLE_CHAT;
 import static io.github.dead_i.bungeeweb.hikari.HikariDB.TABLE_COMMANDS;
+import static io.github.dead_i.bungeeweb.hikari.HikariDB.TABLE_CLIENTS;
 import static io.github.dead_i.bungeeweb.hikari.HikariDB.TABLE_LOGS;
 import static io.github.dead_i.bungeeweb.hikari.HikariDB.TABLE_PLAYERS;
 import static io.github.dead_i.bungeeweb.hikari.HikariDB.TABLE_SERVERCHANGES;
@@ -136,17 +137,18 @@ public class GetLogs extends APICommand {
 		prepareQueryArguments(filters, params, optimisingFilters, content, minId, maxId);
 		
 		String sql = """
-				SELECT `l`.`id`, `time`, `type`, `s`.`name` as `server`, `uuid`, `username`, `protocol_id`, INET6_NTOA(`ip_address`) as `ip`, `client`, `hostname`, `message`, `command`, `arguments`, `target_server`, `extra` FROM `%1$s` as `l`
+				SELECT `l`.`id`, `time`, `type`, `s`.`name` as `server`, `uuid`, `username`, `protocol_id`, INET6_NTOA(`ip_address`) as `ip`, `c`.`name` as `client`, `hostname`, `message`, `command`, `arguments`, `target_server`, `extra` FROM `%1$s` as `l`
 				    LEFT JOIN `%2$s` as `s` ON `l`.`server_id` = `s`.`id`
-				    LEFT JOIN `%3$s` as `ps` ON `l`.`session_id` = `ps`.`id`
-				    LEFT JOIN `%4$s` as `p` ON `l`.`player_id` = `p`.`id`
-				    LEFT JOIN `%5$s` as `ch` ON `l`.`id` = `ch`.`id`
-				    LEFT JOIN `%6$s` as `cmd` ON `l`.`id` = `cmd`.`id`
-				    LEFT JOIN  (SELECT `sc`.`id`, `name` as `target_server`, `extra` FROM `%7$s` as `sc`
+				    LEFT JOIN `%4$s` as `ps` ON `l`.`session_id` = `ps`.`id`
+				    LEFT JOIN `%3$s` as `c` ON `ps`.`client_id` = `c`.`id`
+				    LEFT JOIN `%5$s` as `p` ON `l`.`player_id` = `p`.`id`
+				    LEFT JOIN `%6$s` as `ch` ON `l`.`id` = `ch`.`id`
+				    LEFT JOIN `%7$s` as `cmd` ON `l`.`id` = `cmd`.`id`
+				    LEFT JOIN  (SELECT `sc`.`id`, `name` as `target_server`, `extra` FROM `%8$s` as `sc`
 				        LEFT JOIN `%2$s` as `s` ON `sc`.`target_server` = `s`.`id`) as `sc` ON `l`.`id` = `sc`.`id`
-				    %8$s
+				    %9$s
 				    ORDER BY `l`.`id` DESC LIMIT ?
-				""".formatted(TABLE_LOGS, TABLE_SERVERS, TABLE_SESSIONS, TABLE_PLAYERS, TABLE_CHAT, TABLE_COMMANDS, TABLE_SERVERCHANGES,
+				""".formatted(TABLE_LOGS, TABLE_SERVERS, TABLE_CLIENTS, TABLE_SESSIONS, TABLE_PLAYERS, TABLE_CHAT, TABLE_COMMANDS, TABLE_SERVERCHANGES,
 						filters.isEmpty() ? "" : ("WHERE " + String.join(" AND ", filters)));
 		try (Connection conn = this.plugin.getDatabaseManager().connect()) {
 			try (PreparedStatement stm = conn.prepareStatement(sql)) {

@@ -27,8 +27,8 @@ public class ServerIdManager {
 						name -> CompletableFuture.supplyAsync(
 								() -> {
 									long serverId = hikari.getOrCreateServerId(name);
-									serverIds.put(name, serverId);
-									serverIdQueries.remove(name);
+									serverIds.put(lowerName, serverId);
+									serverIdQueries.remove(lowerName);
 									return serverId;
 								}))
 						.get();

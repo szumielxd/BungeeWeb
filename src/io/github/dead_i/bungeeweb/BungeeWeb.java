@@ -47,6 +47,7 @@ public class BungeeWeb extends Plugin {
     private @Nullable HikariDB databaseManager;
     private @Nullable PlayerInfoManager playerInfoManager;
     private @Nullable ServerIdManager serverIdManager;
+    private @Nullable ClientIdManager clientIdManager;
 
     
     @Override
@@ -90,6 +91,7 @@ public class BungeeWeb extends Plugin {
         // Setup managers
         this.playerInfoManager = new PlayerInfoManager(this);
         this.serverIdManager = new ServerIdManager(databaseManager);
+        this.clientIdManager = new ClientIdManager(databaseManager);
         this.playerInfoManager.start();
 
         // Start automatic chunking
@@ -109,7 +111,10 @@ public class BungeeWeb extends Plugin {
 
         // Graph loops
         int inc = getConfig().getInt("server.statscheck");
-        if (inc > 0) getProxy().getScheduler().schedule(this, new StatusCheck(this), inc, inc, TimeUnit.SECONDS);
+        if (inc > 0) {
+        	getProxy().getScheduler().schedule(this, new ServerStatsCheck(this), inc, inc, TimeUnit.SECONDS);
+            getProxy().getScheduler().schedule(this, new ClientStatsCheck(this), inc, inc, TimeUnit.SECONDS);
+        }
 
         // Setup the context
         ContextHandler context = new ContextHandler("/");
@@ -166,11 +171,11 @@ public class BungeeWeb extends Plugin {
     }
 
     public void setupPurging(@NotNull String type) {
-        int days = getConfig().getInt("server." + type + "days");
+        /*int days = getConfig().getInt("server." + type + "days");
         int purge = getConfig().getInt("server.purge", 10);
         if (purge > 0 && days > 0) {
             getProxy().getScheduler().schedule(this, new PurgeScheduler(this, type, days), purge, purge, TimeUnit.MINUTES);
-        }
+        }*/
     }
     
     public @NotNull PlayerInfoManager getPlayerInfoManager() {
@@ -180,6 +185,11 @@ public class BungeeWeb extends Plugin {
     
     public @NotNull ServerIdManager getServerIdManager() {
     	return Optional.ofNullable(this.serverIdManager)
+    			.orElseThrow(() -> new IllegalStateException("BungeeWeb is not initialized"));
+    }
+    
+    public @NotNull ClientIdManager getClientIdManager() {
+    	return Optional.ofNullable(this.clientIdManager)
     			.orElseThrow(() -> new IllegalStateException("BungeeWeb is not initialized"));
     }
     

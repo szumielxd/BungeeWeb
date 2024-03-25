@@ -22,12 +22,12 @@ import org.jetbrains.annotations.NotNull;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.config.Configuration;
 
-public class StatusCheck implements Runnable {
+public class ServerStatsCheck implements Runnable {
 	
 	private final @NotNull BungeeWeb plugin;
 	private long lastId = 0;
 
-	public StatusCheck(BungeeWeb plugin) {
+	public ServerStatsCheck(BungeeWeb plugin) {
 		this.plugin = plugin;
 		try (Connection conn = this.plugin.getDatabaseManager().connect()) {
 			try (Statement stm = conn.createStatement()) {
@@ -93,10 +93,9 @@ public class StatusCheck implements Runnable {
 	private void fillPlayercountData(@NotNull Map<Long, Long[]> stats) {
 		ServerIdManager srvIdMgr = this.plugin.getServerIdManager();
 		this.plugin.getProxy().getServers().values().stream()
-				.forEach(info -> {
-					long id = srvIdMgr.getServerId(info.getName());
-					Optional.ofNullable(stats.get(id)).ifPresent(srv -> srv[0] = (long) info.getPlayers().size());
-				});
+				.forEach(info -> Optional.of(srvIdMgr.getServerId(info.getName()))
+						.map(stats::get)
+						.ifPresent(srv -> srv[0] = (long) info.getPlayers().size()));
 		stats.get(srvIdMgr.getServerId(""))[0] = (long) this.plugin.getProxy().getOnlineCount();
 	}
 	

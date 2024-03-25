@@ -98,7 +98,7 @@ public class DatabaseFormatMigration {
 		this.plugin.getLogger().info(() -> "Database upgrade done in %,dms!".formatted(System.currentTimeMillis() - start));
 	}
 	
-	public void migrate() {
+	public void migratee() {
 		try {
 			setupTempDir();
 			try (BufferedWriter bw = Files.newBufferedWriter(tempDir.resolve("logs.csv"), StandardOpenOption.APPEND, StandardOpenOption.CREATE)) {

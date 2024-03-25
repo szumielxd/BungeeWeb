@@ -32,7 +32,7 @@ public class ChangePassword extends APICommand {
         			String salt = SecureUtils.salt();
                     stm.setString(1, SecureUtils.encrypt(req.getParameter("newpass"), salt));
                     stm.setString(2, salt);
-                    stm.setInt(3, Integer.parseInt((String) req.getSession().getAttribute("id")));
+                    stm.setInt(3, (int) req.getSession().getAttribute("id"));
                     stm.executeUpdate();
                     res.getWriter().print("{ \"status\": 1 }");
         		}

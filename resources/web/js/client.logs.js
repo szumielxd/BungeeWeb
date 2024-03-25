@@ -19,7 +19,7 @@ pages.logs = (function() {
 	
 	// When the data needs to be updated
 	function update(lastUpdate) {
-		addLogs($('#logs li').last().attr('data-id'), -1, 'prepend');
+		addLogs(parseInt($('#logs li').first().attr('data-id')), -1, 'prepend');
 	}
 	
 	// Logs reset
@@ -51,11 +51,20 @@ pages.logs = (function() {
 		query(url, function(data) {
 			var entries = '';
 			for (log of data) {
-				var d = new Date(log['time'] * 1000);
-				entries += `<li class="entry" data-type="${log['type']}" data-id="${log['id']}">
-				        <div class="left">${formatLog(log, true)}</div>
-					    <div class="right fade time">${d.toLocaleString()}</div>
-					    <div class="right fade server"><a class="serverlink" data-server="${log['server']}">${log['server']}</a></div>
+				var d = new Date(log.time * 1000);
+				entries += `<li class="entry" data-type="${log.type}" data-id="${log.id}">
+						<div class="log-face">
+							<div class="content">${formatLog(log, true, true)}</div>
+							<div class="fade server"><a class="serverlink" data-server="${log.server}">${log.server}</a></div>
+							<div class="fade time">${d.toLocaleString()}</div>
+						</div>
+						<div class="log-extra">
+							<span>UUID: <span>${log.session.player.uuid}</span></span>
+							<span>IP: <span>${log.session.ip}</span></span>
+							<span>Host: <span>hypixel.pl</span></span>
+							<span>Client: <span>${log.session.client}</span></span>
+							<span>Version: <span>${log.session.protocol.name}</span></span>
+						</div>
 					</li>`;
 			}
 			
@@ -86,9 +95,11 @@ pages.logs = (function() {
 
 	// Logs "show more" button handler
 	$('#logs .log').on('click', '.more', function() {
-		var more = $('#logs .log .more');
+		const more = $(this);
+		const parent = more.parent();
+		const maxId = parseInt(parent.find('li.entry').last().attr('data-id'));
 		more.removeClass('more').text(lang.logs.loading);
-		addLogs(0, $('#logs li').first().attr('data-id'), 'append', function() {
+		addLogs(-1, maxId, 'append', function() {
 			more.remove();
 		});
 	});

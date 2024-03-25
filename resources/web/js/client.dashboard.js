@@ -19,7 +19,12 @@ pages.dashboard = (function() {
 		// Retrieve initial graph data
 		getStatsData('', function(data) {
 			chart = Highcharts.chart('graph-dashboard', {
+				accessibility: {
+					enabled: false
+				},
 	            chart: {
+					styledMode: true,
+					backgroundColor: null,
 	                zoomType: 'x'
 	            },
 	            title: {
@@ -97,7 +102,7 @@ pages.dashboard = (function() {
 			query('api/getlogs?limit=' + i + '&time=' + lastUpdate, function(data) {
 				var entries = '';
 				for (item in data) {
-					entries += '<li>' + formatLog(data[item], true) + '</li>';
+					entries += '<li><span>' + formatLog(data[item], true, true) + '</span></li>';
 				}
 				
 				$('#dashboard .logs .log').prepend(entries);
@@ -126,11 +131,18 @@ pages.dashboard = (function() {
 	function getStatsData(since, cb) {
 		if (hasPermission('stats')) {
 			query('api/getstats?since=' + since, function(data) {
-				var out = [];
-				for (c in stats) {
+				let out = [];
+				for (s in stats) {
 					out.push({
-						name: stats[c],
-						data: data.data[c]
+						name: stats[s],
+						data: data.data[''][s]
+					});
+				}
+				delete data.data[''];
+				for (srv in data.data) {
+					out.push({
+						name: srv,
+						data: data.data[srv]['playercount']
 					});
 				}
 				cb(out, data.increment);
