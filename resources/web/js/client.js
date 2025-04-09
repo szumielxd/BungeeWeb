@@ -257,7 +257,7 @@ function getExtraFilters(el) {
 
 function switchExtraFilters(parent, type, state) {
 	if (!state) {
-		parent.find(`.${type}-filters > div > input`).val('');
+		parent.find(`.${type}-filters input`).val('');
 		parent.find(`.${type}-filters`).hide();
 	} else {
 		parent.find(`.${type}-filters`).show();
@@ -298,7 +298,7 @@ function showPlayer(uuid) {
 	$('#playerinfo').attr('data-selector', uuid);
 	$('.mask').addClass('active');
 	setFilters($('#playerinfo .filters'));
-	for (type of ['chat', 'command']) {
+	for (type of ['chat', 'command', 'server_change']) {
 		switchExtraFilters($('#playerinfo'), type, false);
 	}
 	resetPlayer(uuid);
@@ -310,7 +310,7 @@ function showServer(serverName) {
 	$('#serverinfo').attr('data-selector', serverName);
 	$('.mask').addClass('active');
 	setFilters($('#serverinfo .filters'));
-	for (type of ['chat', 'command']) {
+	for (type of ['chat', 'command', 'server_change']) {
 		switchExtraFilters($('#serverinfo'), type, false);
 	}
 	resetServer(serverName);
@@ -369,7 +369,7 @@ function addPlayerLogs(uuid, maxId=-1, types, extraFilters, cb) {
 						<div class="log-extra">
 							<span>UUID: <span>${log.session.player.uuid}</span></span>
 							<span>IP: <span>${log.session.ip}</span></span>
-							<span>Host: <span>hypixel.pl</span></span>
+							<span>Host: <span>${log.session.hostname}</span></span>
 							<span>Client: <span>${log.session.client}</span></span>
 							<span>Version: <span>${log.session.protocol.name}</span></span>
 						</div>
@@ -435,6 +435,7 @@ $('.dialog .filters').on('click', 'a', function() {
 	const parent = $(this).parents('.dialog');
 	switch (type) {
 		case 'chat':
+		case 'server_change':
 		case 'command': {
 			switchExtraFilters(parent, type, enabled);
 			break;
@@ -580,7 +581,7 @@ function hide(el, cb) {
 
 // API query handler
 function query(url, cb, msg) {
-	$.get(url, function(data) {
+	return $.get(url, function(data) {
 		cb(parse(data, msg));
 	});
 }
@@ -636,7 +637,7 @@ function replaceTextInLog(msg, log, formatter=(x, y)=>x) {
 function getPlayerActivityData(uuid, cb) {
 	if (hasPermission('activity')) {
 		const to = Math.floor(new Date().getTime() / (3_600_000)) * 3_600; // last full hour
-		const since = to - (1 * 30 * 24 * 3_600); // 6 * 30 days earlier
+		const since = to - (1 * 30 * 24 * 3_600 * 2); // 3 * 30 days earlier
 		query(`api/getactivity?uuid=${uuid}&since=${since}&to=${to}`, function(data) {
 			delete data[""];
 			servers = [];
@@ -680,7 +681,7 @@ function buildPlayerActivityChart(data, id) {
 			backgroundColor: null,
 			styledMode: true,
 			events: {
-				async render() {
+				async render(e) {
 					const chart = this;
 					let all = 0;
 					let activity = [];
@@ -688,15 +689,16 @@ function buildPlayerActivityChart(data, id) {
 					chart.series.forEach(series => {
 						if (series.name !== 'Navigator 1') {
 							if (series.visible) {
-								const sum = series.processedYData.reduce((acc, point) => acc + point, 0);
+								const sum = series.points.reduce((acc, point) => acc + point.y, 0);
 								all += sum;
 								activity.push({
 									name : series.name,
-									y: all
+									y: sum
 								});
 							}
 						}
 					});
+					activity.sort((a, b) => b.y - a.y);
 					$('#sum-player-activity-chart').text(formatTimespan(Math.round(all)));
 					const updateTime = new Date().getTime(); 
 					lastUpdate = updateTime;

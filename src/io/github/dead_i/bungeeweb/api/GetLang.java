@@ -1,9 +1,9 @@
 package io.github.dead_i.bungeeweb.api;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.SQLException;
 
 import org.jetbrains.annotations.NotNull;
@@ -16,26 +16,21 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 public class GetLang extends APICommand {
-    
+	
 	public GetLang(@NotNull BungeeWeb plugin) {
-        super(plugin, "getlang", true);
-    }
+		super(plugin, "getlang", true);
+	}
 
-    @Override
-    public void execute(HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
-        String fallback = this.plugin.getConfig().getString("server.language");
-        String lang = req.getParameter("lang");
+	@Override
+	public void execute(HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
+		String fallback = this.plugin.getConfig().getString("server.language");
+		String lang = req.getParameter("lang");
 
-        if (lang == null) lang = fallback;
+		if (lang == null) lang = fallback;
 
-        File file = new File(plugin.getDataFolder(), "lang/" + lang + ".json");
-        InputStream stream;
-        if (file.exists()) {
-            stream = new FileInputStream(file);
-        }else{
-            stream = plugin.getResourceAsStream("lang/en.json");
-        }
-
-        ByteStreams.copy(stream, res.getOutputStream());
-    }
+		Path file = plugin.getDataFolder().resolve("lang/" + lang + ".json");
+		try (InputStream stream = Files.exists(file) ? Files.newInputStream(file) : plugin.getClass().getResourceAsStream("/lang/en.json")) {
+			ByteStreams.copy(stream, res.getOutputStream());
+		}
+	}
 }

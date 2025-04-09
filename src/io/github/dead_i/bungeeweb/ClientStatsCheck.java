@@ -18,9 +18,10 @@ import java.util.stream.Stream;
 
 import org.jetbrains.annotations.NotNull;
 
-import net.md_5.bungee.api.config.ServerInfo;
-import net.md_5.bungee.api.connection.ProxiedPlayer;
-import net.md_5.bungee.config.Configuration;
+import com.moandjiezana.toml.Toml;
+import com.velocitypowered.api.proxy.Player;
+import com.velocitypowered.api.proxy.server.RegisteredServer;
+import com.velocitypowered.api.proxy.server.ServerInfo;
 
 public class ClientStatsCheck implements Runnable {
 	
@@ -32,7 +33,8 @@ public class ClientStatsCheck implements Runnable {
 
 	@Override
 	public void run() {
-		Map<Long, Map<Long, Long>> stats = Stream.concat(Stream.of(""), this.plugin.getProxy().getServers().values().parallelStream()
+		Map<Long, Map<Long, Long>> stats = Stream.concat(Stream.of(""), this.plugin.getProxy().getAllServers().parallelStream()
+				.map(RegisteredServer::getServerInfo)
 				.map(ServerInfo::getName))
 				.map(plugin.getServerIdManager()::getServerId)
 				.distinct()
@@ -59,13 +61,13 @@ public class ClientStatsCheck implements Runnable {
 				stm.executeUpdate();
 			}
 		} catch (SQLException e) {
-			plugin.getLogger().warning("An error occurred when executing the database query to update the statistics.");
+			plugin.getLogger().warn("An error occurred when executing the database query to update the statistics.");
 			e.printStackTrace();
 		}
 	}
 	
 	private void fillData(@NotNull Map<Long, Map<Long, Long>> stats) {
-		Configuration config = this.plugin.getConfig();
+		Toml config = this.plugin.getConfig();
 		if (config.getBoolean("stats.playercount")) {
 			fillPlayercountData(stats);
 		}
@@ -73,14 +75,14 @@ public class ClientStatsCheck implements Runnable {
 	
 	private void fillPlayercountData(@NotNull Map<Long, Map<Long, Long>> stats) {
 		ServerIdManager srvIdMgr = this.plugin.getServerIdManager();
-		this.plugin.getProxy().getServers().values().stream()
-				.forEach(info -> Optional.of(srvIdMgr.getServerId(info.getName()))
+		this.plugin.getProxy().getAllServers().stream()
+				.forEach(info -> Optional.of(srvIdMgr.getServerId(info.getServerInfo().getName()))
 						.map(stats::get)
-						.ifPresent(srv -> srv.putAll(this.mapPlayercountByClient(info.getPlayers()))));
-		stats.get(srvIdMgr.getServerId("")).putAll(this.mapPlayercountByClient(this.plugin.getProxy().getPlayers()));
+						.ifPresent(srv -> srv.putAll(this.mapPlayercountByClient(info.getPlayersConnected()))));
+		stats.get(srvIdMgr.getServerId("")).putAll(this.mapPlayercountByClient(this.plugin.getProxy().getAllPlayers()));
 	}
 	
-	private @NotNull Map<Long, Long> mapPlayercountByClient(Collection<ProxiedPlayer> players) {
+	private @NotNull Map<Long, Long> mapPlayercountByClient(Collection<Player> players) {
 		var clientMgr = this.plugin.getClientIdManager();
 		var clientCount = players.stream()
 				.map(this.plugin.getPlayerInfoManager()::getActiveSession)

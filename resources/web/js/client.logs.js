@@ -48,6 +48,15 @@ pages.logs = (function() {
 		queryFilters.forEach((v, k) => params.set(k, v));
 		params.set('types', getFilters($('#logs .filters')));
 		const url = `api/getlogs?${new URLSearchParams(params)}`;
+		$('#logs-loading-icon').remove();
+		const queryId = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString(16);
+		console.log(queryId);
+		const loadIcon = $('#loader-icon-holder svg').first().clone().attr('id', 'logs-loading-icon').attr('query', queryId);
+		if (position == 'prepend') {
+			$('#logs .log').prepend(loadIcon);
+		} else {
+			$('#logs .log').append(loadIcon);
+		}
 		query(url, function(data) {
 			var entries = '';
 			for (log of data) {
@@ -60,8 +69,8 @@ pages.logs = (function() {
 						</div>
 						<div class="log-extra">
 							<span>UUID: <span>${log.session.player.uuid}</span></span>
-							<span>IP: <span>${log.session.ip}</span></span>
-							<span>Host: <span>hypixel.pl</span></span>
+							<span>IP: <span>${log.session.ip}</span>:<span class="non-significant">${log.session.port}</span></span>
+							<span>Host: <span>${log.session.hostname}</span></span>
 							<span>Client: <span>${log.session.client}</span></span>
 							<span>Version: <span>${log.session.protocol.name}</span></span>
 						</div>
@@ -76,6 +85,8 @@ pages.logs = (function() {
 			
 			if (data.length == limit && $('#logs .log .more').length == 0) $('#logs .log').append('<li class="more">Show more</li>');
 			if (cb !== undefined) cb();
+		}).always(function() {
+			$(`#logs-loading-icon[query="${queryId}"]`).remove();
 		});
 	}
 	
@@ -109,8 +120,17 @@ pages.logs = (function() {
 		e.preventDefault();
 		const a = Array.from(getExtraFilters($('#logs .query-filters')).entries()).map(([k, v]) => {
 			if (k === 'usernames') {
-				return getUUIDs([... new Set(v.split(' ').filter(element => element))]).then((arr) => {
-					return ['uuids', [... new Set(arr.filter(e => e).map(e => e.uuid))].join(' ')];
+				let elements = [... new Set(v.split(' ').filter(element => element))];
+				console.log(elements);
+				const regex = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/gi;
+				const uuids = elements.filter(element => element.match(regex));
+				const usernames = elements.filter(element => !element.match(regex));
+				console.log(uuids);
+				console.log(usernames.concat(uuids));
+				return getUUIDs(usernames).then((arr) => {
+					const result = [... new Set(arr.filter(e => e).map(e => e.uuid).concat(uuids))].join(',');
+					console.log(result);
+					return ['uuids', result];
 				});
 			} else {
 				return Promise.resolve([k, v]);
@@ -119,6 +139,7 @@ pages.logs = (function() {
 		const result = await Promise.all(a);
 		queryFilters.clear();
 		result.forEach(([k, v]) => queryFilters.set(k, v));
+		console.log(queryFilters);
 		resetLogs();
 	});
 	

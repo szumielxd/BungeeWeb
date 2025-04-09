@@ -11,25 +11,27 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.jetbrains.annotations.NotNull;
 
+import com.velocitypowered.api.proxy.server.RegisteredServer;
+import com.velocitypowered.api.proxy.server.ServerInfo;
+
 import io.github.dead_i.bungeeweb.APICommand;
 import io.github.dead_i.bungeeweb.BungeeWeb;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
 public class GetStats extends APICommand {
 	
-	private static final String[] TYPES = { "playercount", "maxplayers", "activity" };
-
 	public GetStats(@NotNull BungeeWeb plugin) {
 		super(plugin, "getstats", "stats");
 	}
@@ -45,6 +47,19 @@ public class GetStats extends APICommand {
 				.filter(BungeeWeb::isNumber)
 				.map(Long::parseLong).orElse(month);
 		
+		// Since
+		StatType[] fields = Optional.of(
+				Optional.ofNullable(req.getParameter("fields"))
+						.map(s -> s.split(","))
+						.stream()
+						.flatMap(Stream::of)
+						.map(StatType::tryParse)
+						.filter(Optional::isPresent)
+						.map(Optional::get)
+						.toArray(StatType[]::new))
+				.filter(a -> a.length > 0)
+				.orElseGet(StatType::values);
+		
 		// Servers
 		List<String> servers = Optional.ofNullable(req.getParameter("servers"))
 				.map(s -> s.split(","))
@@ -52,6 +67,18 @@ public class GetStats extends APICommand {
 				.flatMap(Stream::of)
 				.map(String::toLowerCase)
 				.distinct()
+				.toList();
+		if (servers.isEmpty()) {
+			servers = Stream.concat(
+					Stream.of(""),
+					plugin.getProxy().getAllServers().stream()
+							.map(RegisteredServer::getServerInfo)
+							.map(ServerInfo::getName))
+					.toList();
+		}
+		
+		List<Long> serverIds = servers.stream()
+				.map(plugin.getServerIdManager()::getServerId)
 				.toList();
 
 		if (time < month) {
@@ -62,37 +89,63 @@ public class GetStats extends APICommand {
 
 		try (Connection conn = this.plugin.getDatabaseManager().connect()) {
 			String sql = """
-					SELECT `name`, `time`, `playercount`, `maxplayers`, `activity` FROM `%1$s` as `st`
+					SELECT `name`, `time`, %4$s FROM `%1$s` as `st`
 					    LEFT JOIN `%2$s` as `s` ON `st`.`server_id` = `s`.`id`
 					    WHERE `time` > ? %3$s
 					"""
-					.formatted(TABLE_SERVER_STATS, TABLE_SERVERS,
-							servers.isEmpty() ? "" : "AND `name` IN (%s)"
-								.formatted(", ?".repeat(servers.size()).substring(2)));
+					.formatted(
+							TABLE_SERVER_STATS,
+							TABLE_SERVERS,
+							serverIds.isEmpty() ? "" : "AND `server_id` IN (%s)"
+									.formatted(", ?".repeat(serverIds.size()).substring(2)),
+							Stream.of(fields)
+									.map("`%s`"::formatted)
+									.collect(Collectors.joining(", ")));
 			try (PreparedStatement stm = conn.prepareStatement(sql)) {
-				Map<String, Map<String, List<Long[]>>> records = new HashMap<>(); // <Server, Type, <[time, value]>>
+				Map<String, Map<Long, Long[]>> records = new HashMap<>(); // <Server, Type, <time:[values]>>
 				int pos = 1;
 				stm.setTimestamp(pos++, Timestamp.from(Instant.ofEpochSecond(time)));
-				if (!servers.isEmpty()) {
-					for (String srv : servers) {
-						stm.setString(pos++, srv);
+				if (!serverIds.isEmpty()) {
+					for (long srv : serverIds) {
+						stm.setLong(pos++, srv);
 					}
 				}
 				try (ResultSet rs = stm.executeQuery()) {
 					while (rs.next()) {
-						Map<String, List<Long[]>> values = records.computeIfAbsent(rs.getString(1),
-								k -> Stream.of(TYPES).collect(Collectors.toMap(Function.identity(), e -> new LinkedList<>())));
-						long epochSeconds = rs.getTimestamp(2).toInstant().toEpochMilli();
-						for (int i = 0; i < 3; i++) {
-							values.get(TYPES[i]).add(new Long[] { epochSeconds, (long) rs.getInt(3 + i) });
+						var valuesEntry = records.computeIfAbsent(rs.getString(1), k -> new LinkedHashMap<>());
+						long epochSeconds = rs.getTimestamp(2).getTime();
+						Long[] values = new Long[fields.length];
+						for (int i = 0; i < fields.length; i++) {
+							values[i] = rs.getLong(3 + i);
 						}
+						valuesEntry.put(epochSeconds, values);
 					}
 				}
 				HashMap<String, Object> out = new HashMap<>();
-				out.put("increment", this.plugin.getConfig().getInt("server.statscheck"));
+				out.put("increment", this.plugin.getConfig().getLong("server.statscheck"));
 				out.put("data", records);
-				res.getWriter().print(GSON_PARSER.toJson(out));
+				out.put("fields", fields);
+				GSON_PARSER.toJson(out, Map.class, GSON_PARSER.newJsonWriter(res.getWriter()));
 			}
 		}
+	}
+	
+	@AllArgsConstructor
+	private enum StatType {
+		
+		PLAYERCOUNT("playercount"),
+		MAXPLAYERS("maxplayers"),
+		ACTIVITY("activity");
+		
+		@Getter private @NotNull String collumnName;
+		
+		public static @NotNull Optional<StatType> tryParse(String str) {
+			try {
+				return Optional.of(valueOf(str.toUpperCase()));
+			} catch (IllegalArgumentException e) {
+				return Optional.empty();
+			}
+		}
+		
 	}
 }

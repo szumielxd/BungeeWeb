@@ -18,6 +18,10 @@ pages.dashboard = (function() {
 	function navigate() {
 		// Retrieve initial graph data
 		getStatsData('', function(data) {
+			console.log(data);
+			for (let i = 3; i < data.length; i++) {
+				data[i]['visible'] = false;
+			}
 			chart = Highcharts.chart('graph-dashboard', {
 				accessibility: {
 					enabled: false
@@ -130,22 +134,42 @@ pages.dashboard = (function() {
 	// Retrieve the statistics for the graph
 	function getStatsData(since, cb) {
 		if (hasPermission('stats')) {
-			query('api/getstats?since=' + since, function(data) {
+			query('api/getstats?since=' + since + "&servers=", function(data) {
 				let out = [];
-				for (s in stats) {
+				let values = [];
+				for (let i = 0; i < data.fields.length; i++) {
+					console.log(stats[data.fields[i].toLowerCase()]);
+					values[i] = [];
+				}
+				globalData = data.data[''];
+				for (const k in globalData) {
+					const time = parseInt(k);
+					const val = globalData[k];
+					for (let i = 0; i < values.length; i++) {
+						values[i].push([time, val[i]]);
+					}
+				}
+				for (let i = 0; i < values.length; i++) {
 					out.push({
-						name: stats[s],
-						data: data.data[''][s]
+						name: stats[data.fields[i].toLowerCase()],
+						data: values[i]
 					});
 				}
-				delete data.data[''];
-				for (srv in data.data) {
-					out.push({
-						name: srv,
-						data: data.data[srv]['playercount']
-					});
-				}
-				cb(out, data.increment);
+				query('api/getstats?since=' + since + "&fields=playercount", function(data) {
+					delete data.data[''];
+					for (srv in data.data) {
+						globalData = data.data[srv];
+						values = [];
+						for (const k in globalData) {
+							values.push([parseInt(k), globalData[k][0]]);
+						}
+						out.push({
+							name: srv,
+							data: values
+						});
+					}
+					cb(out, data.increment);
+				});
 			});
 		}
 	}

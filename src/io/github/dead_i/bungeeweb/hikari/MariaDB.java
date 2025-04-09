@@ -51,6 +51,8 @@ public class MariaDB extends HikariDB {
 		config.addDataSourceProperty("serverName", address);
 		config.addDataSourceProperty("port", port);
 		config.addDataSourceProperty("databaseName", database);
+		config.addDataSourceProperty("characterEncoding","utf8");
+		config.addDataSourceProperty("useUnicode","true");
 		config.setUsername(user);
 		config.setPassword(password);
 	}

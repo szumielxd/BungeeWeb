@@ -19,8 +19,12 @@ import java.util.stream.Stream;
 
 import org.jetbrains.annotations.NotNull;
 
-import net.md_5.bungee.api.config.ServerInfo;
-import net.md_5.bungee.config.Configuration;
+import com.moandjiezana.toml.Toml;
+import com.velocitypowered.api.proxy.Player;
+import com.velocitypowered.api.proxy.server.RegisteredServer;
+import com.velocitypowered.api.proxy.server.ServerInfo;
+
+import lombok.Data;
 
 public class ServerStatsCheck implements Runnable {
 	
@@ -38,22 +42,19 @@ public class ServerStatsCheck implements Runnable {
 				}
 			}
 		} catch (SQLException e) {
-			plugin.getLogger().warning("An error occurred when initialising the statistics.");
+			plugin.getLogger().warn("An error occurred when initialising the statistics.");
 			e.printStackTrace();
 		}
 	}
 
 	@Override
 	public void run() {
-		Map<Long, Long[]> stats = Stream.concat(Stream.of(""), this.plugin.getProxy().getServers().values().parallelStream()
+		Map<Long, ServerStats> stats = Stream.concat(Stream.of(""), this.plugin.getProxy().getAllServers().parallelStream()
+				.map(RegisteredServer::getServerInfo)
 				.map(ServerInfo::getName))
 				.map(plugin.getServerIdManager()::getServerId)
 				.distinct()
-				.collect(Collectors.toMap(Function.identity(), v -> new Long[] {
-							0L, // player count
-							0L, // max players
-							0L // activity
-						}));
+				.collect(Collectors.toMap(Function.identity(), v -> new ServerStats()));
 		
 		try (Connection conn = this.plugin.getDatabaseManager().connect()) {
 			fillData(conn, stats);
@@ -62,71 +63,82 @@ public class ServerStatsCheck implements Runnable {
 					+ ", (?, ?, ?, ?, ?)".repeat(stats.size()).substring(2);
 			int i = 1;
 			try (PreparedStatement stm = conn.prepareStatement(sql)) {
-				for (Entry<Long, Long[]> entry : stats.entrySet()) {
+				for (Entry<Long, ServerStats> entry : stats.entrySet()) {
 					stm.setTimestamp(i++, Timestamp.from(now));
 					stm.setLong(i++, entry.getKey());
-					stm.setLong(i++, entry.getValue()[0]);
-					stm.setLong(i++, entry.getValue()[1]);
-					stm.setLong(i++, entry.getValue()[2]);
+					stm.setLong(i++, entry.getValue().getPlayerCount());
+					stm.setLong(i++, entry.getValue().getMaxPlayers());
+					stm.setLong(i++, entry.getValue().getActions());
 				}
 				stm.executeUpdate();
 			}
 		} catch (SQLException e) {
-			plugin.getLogger().warning("An error occurred when executing the database query to update the statistics.");
+			plugin.getLogger().warn("An error occurred when executing the database query to update the statistics.");
 			e.printStackTrace();
 		}
 	}
 	
-	private void fillData(@NotNull Connection conn, @NotNull Map<Long, Long[]> stats) throws SQLException {
-		Configuration config = this.plugin.getConfig();
-		if (config.getBoolean("stats.playercount")) {
+	private void fillData(@NotNull Connection conn, @NotNull Map<Long, ServerStats> stats) throws SQLException {
+		Toml config = this.plugin.getConfig();
+		if (config.getBoolean("stats.playercount").booleanValue()) {
 			fillPlayercountData(stats);
-			if (config.getBoolean("stats.maxplayers")) {
+			if (config.getBoolean("stats.maxplayers").booleanValue()) {
 				fillMaxplayersData(conn, stats);
 			}
 		}
-		if (config.getBoolean("stats.activity")) {
+		if (config.getBoolean("stats.activity").booleanValue()) {
 			fillActivityData(conn, stats);
 		}
 	}
 	
-	private void fillPlayercountData(@NotNull Map<Long, Long[]> stats) {
+	private void fillPlayercountData(@NotNull Map<Long, ServerStats> stats) {
 		ServerIdManager srvIdMgr = this.plugin.getServerIdManager();
-		this.plugin.getProxy().getServers().values().stream()
-				.forEach(info -> Optional.of(srvIdMgr.getServerId(info.getName()))
+		this.plugin.getProxy().getAllServers().stream()
+				.forEach(info -> Optional.of(srvIdMgr.getServerId(info.getServerInfo().getName()))
 						.map(stats::get)
-						.ifPresent(srv -> srv[0] = (long) info.getPlayers().size()));
-		stats.get(srvIdMgr.getServerId(""))[0] = (long) this.plugin.getProxy().getOnlineCount();
+						.ifPresent(srv -> srv.setPlayerCount(info.getPlayersConnected().stream()
+								.filter(Player::isActive)
+								.count())));
+		stats.get(srvIdMgr.getServerId("")).setPlayerCount((long) this.plugin.getProxy().getPlayerCount());
 	}
 	
-	private void fillMaxplayersData(@NotNull Connection conn, @NotNull Map<Long, Long[]> stats) throws SQLException {
+	private void fillMaxplayersData(@NotNull Connection conn, @NotNull Map<Long, ServerStats> stats) throws SQLException {
 		String sql = "SELECT `server_id`, MAX(`maxplayers`) FROM `%1$s` GROUP BY `server_id`".formatted(TABLE_SERVER_STATS);
 		try (Statement stm = conn.createStatement()) {
 			try (ResultSet rs = stm.executeQuery(sql)) {
 				while (rs.next()) {
-					Long[] values = stats.get(rs.getLong(1));
+					ServerStats values = stats.get(rs.getLong(1));
 					if (values != null) {
-						values[1] = Math.max(values[0], rs.getLong(2));
+						values.setMaxPlayers(Math.max(values.getPlayerCount(), rs.getLong(2)));
 					}
 				}
 			}
 		}
 	}
 	
-	private void fillActivityData(@NotNull Connection conn, @NotNull Map<Long, Long[]> stats) throws SQLException {
+	private void fillActivityData(@NotNull Connection conn, @NotNull Map<Long, ServerStats> stats) throws SQLException {
 		String sql = "SELECT `server_id`, COUNT(*), MAX(`id`) as `id` FROM `%1$s` WHERE `id` > ? GROUP BY `server_id` ORDER BY `id`".formatted(TABLE_LOGS);
 		try (PreparedStatement stm = conn.prepareStatement(sql)) {
 			stm.setLong(1, this.lastId);
 			try (ResultSet rs = stm.executeQuery()) {
 				while (rs.next()) {
-					Long[] values = stats.get(rs.getLong(1));
+					ServerStats values = stats.get(rs.getLong(1));
 					this.lastId = rs.getLong(3);
 					if (values != null) {
-						values[1] = rs.getLong(2);
+						values.setActions(rs.getLong(2));
 					}
 				}
 			}
 		}
+	}
+	
+	@Data
+	private static class ServerStats {
+		
+		long playerCount;
+		long maxPlayers;
+		long actions;
+		
 	}
 	
 }

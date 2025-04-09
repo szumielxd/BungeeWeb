@@ -24,6 +24,7 @@ import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.jetbrains.annotations.NotNull;
 
 import com.google.common.io.ByteStreams;
+import com.velocitypowered.api.util.Favicon;
 
 import io.github.dead_i.bungeeweb.api.ChangePassword;
 import io.github.dead_i.bungeeweb.api.CreateUser;
@@ -43,7 +44,6 @@ import io.github.dead_i.bungeeweb.hikari.HikariDB.UserProfile;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import net.md_5.bungee.api.Favicon;
 
 public class WebHandler extends AbstractHandler {
     
@@ -94,7 +94,7 @@ public class WebHandler extends AbstractHandler {
                         res.getWriter().print("{ \"error\": \"You do not have permission to perform this action.\" }");
                     }
                 } catch (SQLException e) {
-                    plugin.getLogger().warning("A MySQL database error occurred.");
+                    plugin.getLogger().warn("A MySQL database error occurred.");
                     e.printStackTrace();
                 }
                 baseReq.setHandled(true);
@@ -116,17 +116,16 @@ public class WebHandler extends AbstractHandler {
             baseReq.setHandled(true);
         }else if (target.equalsIgnoreCase("/css/theme.css")) {
             String name = this.plugin.getConfig().getString("server.theme");
-            if (name.isEmpty()) name = "dark";
-            InputStream resource = plugin.getResourceAsStream("themes/" + name + ".css");
-            if (resource == null) {
-                File file = new File(plugin.getDataFolder(), "themes/" + name + ".css");
-                if (file.exists()) {
-                	try (FileInputStream is = new FileInputStream(file)) {
-                		ByteStreams.copy(is, res.getOutputStream());
-                	}
-                }
-            }else{
-                ByteStreams.copy(resource, res.getOutputStream());
+            if (name.isEmpty()) name = "dark_new";
+            File file = new File(plugin.getDataFolder().toFile(), "themes/" + name + ".css");
+            if (file.exists()) {
+            	try (FileInputStream is = new FileInputStream(file)) {
+            		ByteStreams.copy(is, res.getOutputStream());
+            	}
+            } else{
+            	try (InputStream resource = plugin.getClass().getResourceAsStream("/themes/" + name + ".css")) {
+            		ByteStreams.copy(resource, res.getOutputStream());
+            	}
             }
             baseReq.setHandled(true);
         } else {
@@ -161,9 +160,9 @@ public class WebHandler extends AbstractHandler {
     
     private InputStream getFileOrResourceAsStream(String stringPath) throws IOException {
     	stringPath = stringPath.replace("..", "\\.\\.");
-    	Path path = this.plugin.getDataFolder().toPath().resolve(stringPath);
+    	Path path = this.plugin.getDataFolder().resolve(stringPath);
     	if (Files.isRegularFile(path)) return Files.newInputStream(path);
-    	return this.plugin.getResourceAsStream(stringPath);
+    	return this.plugin.getClass().getResourceAsStream("/" + stringPath);
     }
     
     private class FaviconHandler {
@@ -174,10 +173,9 @@ public class WebHandler extends AbstractHandler {
     	public void writeFavicon(OutputStream out) throws IOException {
     		if (System.currentTimeMillis() - this.lastUpdate > 300_000) { // 5 minutes
     			this.lastUpdate = System.currentTimeMillis();
-    			@SuppressWarnings("deprecation")
-				Favicon icon = plugin.getProxy().getConfig().getFaviconObject();
+				Favicon icon = plugin.getProxy().getConfiguration().getFavicon().orElse(null);
     			if (icon != null) {
-    				BufferedImage image = ImageIO.read(new ByteArrayInputStream(Base64.getDecoder().decode(icon.getEncoded().split(",", 2)[1])));
+    				BufferedImage image = ImageIO.read(new ByteArrayInputStream(Base64.getDecoder().decode(icon.getBase64Url().split(",", 2)[1])));
     				BufferedImage result = new BufferedImage(16, 16, BufferedImage.TYPE_INT_RGB);
     				result.getGraphics().drawImage(image.getScaledInstance(result.getWidth(), result.getHeight(), Image.SCALE_DEFAULT), 0, 0, null);
     				ByteArrayOutputStream outBytes = new ByteArrayOutputStream();

@@ -28,7 +28,7 @@ public class GetSession extends APICommand {
             out.put("id", req.getSession().getAttribute("id"));
             out.put("user", req.getSession().getAttribute("user"));
             out.put("group", group);
-            out.put("updatetime", this.plugin.getConfig().getInt("server.updatetime", 10));
+            out.put("updatetime", this.plugin.getConfig().getLong("server.updatetime", 10L));
             out.put("permissions", this.plugin.getGroupPermissions(group));
         }
         out.put("autosearch", this.plugin.getConfig().getBoolean("server.autosearch"));

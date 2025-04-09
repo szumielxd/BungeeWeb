@@ -67,6 +67,8 @@ public class MysqlDB extends HikariDB {
 			config.setDriverClassName("com.mysql.jdbc.Driver");
 		}
 		config.setJdbcUrl("jdbc:mysql://" + address + ":" + port + "/" + database);
+		config.addDataSourceProperty("characterEncoding","utf8");
+		config.addDataSourceProperty("useUnicode","true");
 		config.setUsername(user);
 		config.setPassword(password);
 	}

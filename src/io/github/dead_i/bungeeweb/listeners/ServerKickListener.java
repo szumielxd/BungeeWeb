@@ -4,22 +4,32 @@ import java.util.Optional;
 
 import org.jetbrains.annotations.NotNull;
 
+import com.velocitypowered.api.event.Subscribe;
+import com.velocitypowered.api.event.player.KickedFromServerEvent;
+import com.velocitypowered.api.proxy.server.RegisteredServer;
+import com.velocitypowered.api.proxy.server.ServerInfo;
+
 import io.github.dead_i.bungeeweb.BungeeWeb;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import net.md_5.bungee.api.config.ServerInfo;
-import net.md_5.bungee.api.event.ServerKickEvent;
-import net.md_5.bungee.api.plugin.Listener;
-import net.md_5.bungee.chat.ComponentSerializer;
-import net.md_5.bungee.event.EventHandler;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 @RequiredArgsConstructor
-public class ServerKickListener implements Listener {
+public class ServerKickListener {
 	
 	@NonNull private final @NotNull BungeeWeb plugin;
 
-	@EventHandler
-	public void onServerKick(ServerKickEvent event) {
-		this.plugin.getDatabaseManager().logPlayerKick(event.getPlayer(), Optional.ofNullable(event.getCancelServer()).map(ServerInfo::getName).orElse(""), ComponentSerializer.toString(event.getKickReasonComponent()));
+	@Subscribe
+	public void onServerKick(@NotNull KickedFromServerEvent event) {
+		this.plugin.getDatabaseManager().logPlayerKick(
+				event.getPlayer(),
+				Optional.ofNullable(event.getServer())
+						.map(RegisteredServer::getServerInfo)
+						.map(ServerInfo::getName)
+						.orElse(""),
+				event.getServerKickReason()
+						.map(LegacyComponentSerializer.legacySection()::serialize)
+						.map(s -> s.length() > 255 ? s.substring(0, 255) : s)
+						.orElse(""));
 	}
 }

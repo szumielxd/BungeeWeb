@@ -108,16 +108,19 @@ input[type="submit"]:hover, .btn:hover {
 
 li.entry > .log-face > .content {
 	flex-grow:1;
+	overflow-wrap:anywhere;
 }
 
 li.entry > .log-face > .time {
     width:20%;
     text-align:right;
+    flex-shrink:0;
 }
 
 li.entry > .log-face > .server {
     width:15%;
 	text-align:center;
+    flex-shrink:0;
 }
 
 li.entry > .log-face > div {
@@ -744,6 +747,21 @@ span[replacement="player"]  {
     height:0;
     padding:0;
 	z-index:-1000;
+}
+
+#loader-icon-holder {
+	display: none;
+}
+
+.loader-icon {
+	width: 32px;
+	height: 32px;
+	fill: #428bca;
+}
+
+svg#logs-loading-icon {
+	margin: 0 auto;
+	display: block;
 }
 
 /**

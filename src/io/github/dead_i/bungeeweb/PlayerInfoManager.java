@@ -1,7 +1,6 @@
 package io.github.dead_i.bungeeweb;
 
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -16,11 +15,14 @@ import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.velocitypowered.api.proxy.Player;
+import com.velocitypowered.api.proxy.ServerConnection;
+import com.velocitypowered.api.proxy.server.ServerInfo;
+import com.velocitypowered.api.scheduler.ScheduledTask;
+
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
-import net.md_5.bungee.api.connection.ProxiedPlayer;
-import net.md_5.bungee.api.scheduler.ScheduledTask;
 
 @RequiredArgsConstructor
 public class PlayerInfoManager {
@@ -35,11 +37,14 @@ public class PlayerInfoManager {
 	
 	
 	public void start() {
-		this.updateTask = this.plugin.getProxy().getScheduler().schedule(this.plugin, () -> {
+		this.updateTask = this.plugin.getProxy().getScheduler().buildTask(this.plugin, () -> {
 			this.updateActivity();
 			this.saveActivity();
 			this.updateSessionState();
-		}, 1, 1, TimeUnit.MINUTES);
+		})
+		.delay(1, TimeUnit.MINUTES)
+		.repeat(1, TimeUnit.MINUTES)
+		.schedule();
 	}
 	
 	public void stop() {
@@ -54,28 +59,29 @@ public class PlayerInfoManager {
 		return Optional.ofNullable(this.sessions.get(uuid));
 	}
 	
-	public @NotNull Optional<PlayerSession> getActiveSession(@NotNull ProxiedPlayer player) {
+	public @NotNull Optional<PlayerSession> getActiveSession(@NotNull Player player) {
 		return getActiveSession(player.getUniqueId());
 	}
 	
-	public @NotNull PlayerSession createNewSession(@NotNull ProxiedPlayer player) {
+	public @NotNull PlayerSession createNewSession(@NotNull Player player) {
 		long playerId = getPlayerId(player);
-		SocketAddress address = player.getPendingConnection().getSocketAddress();
-		String ip = address instanceof InetSocketAddress inet ? inet.getHostString() : "0.0.0.0";
-		String host = Optional.ofNullable(player.getPendingConnection().getVirtualHost())
+		InetSocketAddress address = player.getRemoteAddress();
+		int port = address.getPort();
+		String ip = address.getHostString();
+		String host = player.getVirtualHost()
 				.map(InetSocketAddress::getHostString)
 				.orElse("");
-		PlayerSession session = new PlayerSession(playerId, player.getPendingConnection().getVersion(), ip, host);
+		PlayerSession session = new PlayerSession(playerId, player.getProtocolVersion().getProtocol(), ip, port, host);
 		this.plugin.getDatabaseManager().insertPlayerSession(session);
 		this.sessions.put(player.getUniqueId(), session);
 		return session;
 	}
 	
-	public long getPlayerId(@NotNull ProxiedPlayer player) {
+	public long getPlayerId(@NotNull Player player) {
 		Long id = this.playerIds.get(player.getUniqueId());
 		if (id == null) {
 			try {
-				final String name = player.getName();
+				final String name = player.getUsername();
 				return playerIdQueries.computeIfAbsent(player.getUniqueId(),
 						uuid -> CompletableFuture.supplyAsync(
 								() -> {
@@ -98,13 +104,13 @@ public class PlayerInfoManager {
 	}
 	
 	private void updateActivity() {
-		this.sessions.forEach((uuid, session) -> {
-			ProxiedPlayer player = this.plugin.getProxy().getPlayer(uuid);
-			if (player != null && player.isConnected() && player.getServer() != null) {
-				String serverName = player.getServer().getInfo().getName();
-				session.getActivity().updateActivity(serverName);
-			}
-		});
+		this.sessions.forEach((uuid, session) -> 
+			this.plugin.getProxy().getPlayer(uuid)
+					.filter(Player::isActive)
+					.flatMap(Player::getCurrentServer)
+					.map(ServerConnection::getServerInfo)
+					.map(ServerInfo::getName)
+					.ifPresent(session.getActivity()::updateActivity));
 	}
 	
 	private void saveActivity() {
@@ -117,10 +123,9 @@ public class PlayerInfoManager {
 			if (expiration.filter(val -> System.currentTimeMillis() - val > 0).isPresent()) {
 				return true;
 			}
-			ProxiedPlayer player = this.plugin.getProxy().getPlayer(e.getKey());
-			if (player == null || !player.isConnected() && expiration.isEmpty()) {
-				e.getValue().setExpiration(Optional.of(System.currentTimeMillis() + 1_800_000));
-			}
+			this.plugin.getProxy().getPlayer(e.getKey())
+					.filter(p -> !p.isActive() && expiration.isEmpty())
+					.ifPresent(p -> e.getValue().setExpiration(Optional.of(System.currentTimeMillis() + 1_800_000)));
 			return false;
 		});
 	}
@@ -134,6 +139,7 @@ public class PlayerInfoManager {
 		private final long playerId;
 		private final int protocol;
 		private final @NotNull String ip;
+		private final int port;
 		private @NotNull String client = DEFAULT_CLIENT;
 		private final @NotNull String hostname;
 		private final @NotNull HourlyActivity activity = new HourlyActivity();
@@ -175,7 +181,6 @@ public class PlayerInfoManager {
 					map.replaceAll((serverId, seconds) -> {
 						int minutes = seconds / 60;
 						if (minutes > 0) {
-							plugin.getLogger().info("#### %d - %d".formatted(serverId, seconds));
 							entries.add(new ActivityUpdateEntry(id, serverId, time, minutes));
 							seconds -= minutes * 60;
 						}

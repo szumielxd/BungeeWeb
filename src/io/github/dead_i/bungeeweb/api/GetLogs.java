@@ -13,12 +13,15 @@ import static io.github.dead_i.bungeeweb.hikari.HikariDB.commaStmReplacers;
 import static io.github.dead_i.bungeeweb.hikari.HikariDB.uuidToBytes;
 
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -27,8 +30,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.eclipse.jetty.util.StringUtil;
 import org.jetbrains.annotations.NotNull;
 
 import io.github.dead_i.bungeeweb.APICommand;
@@ -137,11 +142,11 @@ public class GetLogs extends APICommand {
 		prepareQueryArguments(filters, params, optimisingFilters, content, minId, maxId);
 		
 		String sql = """
-				SELECT `l`.`id`, `time`, `type`, `s`.`name` as `server`, `uuid`, `username`, `protocol_id`, INET6_NTOA(`ip_address`) as `ip`, `c`.`name` as `client`, `hostname`, `message`, `command`, `arguments`, `target_server`, `extra` FROM `%1$s` as `l`
+				SELECT `l`.`id`, `time`, `type`, `s`.`name` as `server`, `uuid`, `username`, `protocol_id`, INET6_NTOA(`ip_address`) as `ip`, `port`, `c`.`name` as `client`, `hostname`, `message`, `command`, `arguments`, `target_server`, `extra` FROM `%1$s` as `l`
 				    LEFT JOIN `%2$s` as `s` ON `l`.`server_id` = `s`.`id`
 				    LEFT JOIN `%4$s` as `ps` ON `l`.`session_id` = `ps`.`id`
 				    LEFT JOIN `%3$s` as `c` ON `ps`.`client_id` = `c`.`id`
-				    LEFT JOIN `%5$s` as `p` ON `l`.`player_id` = `p`.`id`
+				    LEFT JOIN `%5$s` as `p` ON `ps`.`player_id` = `p`.`id`
 				    LEFT JOIN `%6$s` as `ch` ON `l`.`id` = `ch`.`id`
 				    LEFT JOIN `%7$s` as `cmd` ON `l`.`id` = `cmd`.`id`
 				    LEFT JOIN  (SELECT `sc`.`id`, `name` as `target_server`, `extra` FROM `%8$s` as `sc`
@@ -178,13 +183,14 @@ public class GetLogs extends APICommand {
 												rs.getString("username")),
 										new LogEntry.ProtocolInfo(rs.getInt("protocol_id")),
 										rs.getString("ip"),
+										rs.getInt("port"),
 										rs.getString("client"),
 										rs.getString("hostname")),
 								rs.getString("server"),
 								LogType.values()[rs.getInt("type") - 1]);
 						logs.put(id, switch (log.getType()) {
 							case CHAT -> log.asChatLog(rs.getString("message"));
-							case COMMAND -> log.asCommandLog(rs.getString("command"), rs.getString("arguments"));
+							case COMMAND -> transformLogEntry(log, rs.getString("command"), rs.getString("arguments"));
 							case KICK -> log.asKickLog(rs.getString("target_server"), rs.getString("extra"));
 							case SERVER_CHANGE -> log.asServerSwitchLog(rs.getString("target_server"));
 							default -> log;
@@ -196,6 +202,15 @@ public class GetLogs extends APICommand {
 		} catch (SQLException e) {
 			throw new RuntimeException(e);
 		}
+	}
+	
+	private CommandLogEntry transformLogEntry(@NotNull LogEntry log, String cmdName, String cmdArgs) {
+		if (this.plugin.getConfig().getList("command-security.blackoutwebcommands").contains(cmdName.toLowerCase())) {
+			cmdArgs = Stream.of(cmdArgs.split(" "))
+					.map(s -> "*****")
+					.collect(Collectors.joining(" "));
+		}
+		return log.asCommandLog(cmdName, cmdArgs);
 	}
 	
 	private void prepareQueryArguments(List<String> filters, List<Object> params, OptimizingFilter optimisingFilters, ContentMatcher content, long minId, long maxId) {
@@ -243,8 +258,21 @@ public class GetLogs extends APICommand {
 			if (content.commands().isPresent() || content.arguments().isPresent()) {
 				List<String> commandFilters = new LinkedList<>();
 				content.commands().ifPresent(commands -> {
-					commandFilters.add("`cmd`.`command` IN (%s)".formatted(commaStmReplacers(commands.size())));
-					params.addAll(commands);
+					try {
+						var md5 = MessageDigest.getInstance("MD5");
+						commandFilters.add("`cmd`.`command_hash` IN (%s)".formatted(commaStmReplacers(commands.size())));
+						commandFilters.add("`cmd`.`command` IN (%s)".formatted(commaStmReplacers(commands.size())));
+						var hashes = commands.stream()
+								.map(String::getBytes)
+								.map(md5::digest)
+								.map(arr -> Arrays.copyOf(arr, 8))
+								.toList();
+						params.addAll(hashes);
+						params.addAll(commands);
+						
+					} catch (NoSuchAlgorithmException e) {
+						throw new RuntimeException(e);
+					}
 				});
 				content.arguments.ifPresent(arguments -> {
 					commandFilters.add("`cmd`.`arguments` REGEXP ?");
@@ -287,9 +315,9 @@ public class GetLogs extends APICommand {
 				this(protocolId, ProtocolUtils.getProtocolName(protocolId)
 						.orElse("UNKNOWN(%d)".formatted(protocolId)));
 			}
-		};
+		}
 		
-		public record PlayerSession(@NotNull PlayerInfo player, ProtocolInfo protocol, @NotNull String ip, @NotNull String client, @NotNull String hostname) {}
+		public record PlayerSession(@NotNull PlayerInfo player, ProtocolInfo protocol, @NotNull String ip, int port, @NotNull String client, @NotNull String hostname) {}
 		
 		public record PlayerInfo(@NotNull UUID uuid, @NotNull String name) {}
 		

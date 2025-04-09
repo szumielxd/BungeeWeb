@@ -23,6 +23,9 @@ import java.util.stream.IntStream;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.velocitypowered.api.proxy.Player;
+import com.velocitypowered.api.proxy.ServerConnection;
+import com.velocitypowered.api.proxy.server.ServerInfo;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -30,9 +33,6 @@ import io.github.dead_i.bungeeweb.BungeeWeb;
 import io.github.dead_i.bungeeweb.PlayerInfoManager.PlayerSession;
 import io.github.dead_i.bungeeweb.PlayerInfoManager.PlayerSession.HourlyActivity.ActivityUpdateEntry;
 import io.github.dead_i.bungeeweb.SecureUtils;
-import net.md_5.bungee.api.config.ServerInfo;
-import net.md_5.bungee.api.connection.ProxiedPlayer;
-import net.md_5.bungee.api.connection.Server;
 
 public abstract class HikariDB {
 	
@@ -124,20 +124,6 @@ public abstract class HikariDB {
 		return this;
 	}
 	
-	/*public void tryUpgradeDatabaseSchema() {
-		if (checkTableExistence(TABLE_OLD_LOG)) {
-			this.plugin.getLogger().info("Detected old database schema. Upgrading to new format...");
-			new DatabaseFormatMigration(this.hikari, this.plugin).migrate();
-			for (int i = 0; true; i++) {
-				String name = "bungeeweb_log_migrated" + (i > 0 ? i : "");
-				if (!checkTableExistence(name)) {
-					renameTable(TABLE_OLD_LOG, name);
-					break;
-				}
-			}
-		}
-	}*/
-	
 	public void setupTables() {
 		String createUsers = """
 				CREATE TABLE IF NOT EXISTS `%1$s` (
@@ -192,16 +178,14 @@ public abstract class HikariDB {
 				CREATE TABLE IF NOT EXISTS `%1$s` (
 				    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
 				    `time` datetime NOT NULL,
-				    `player_id` int(10) unsigned NOT NULL,
 				    `session_id` int(10) unsigned NOT NULL,
 				    `server_id` int(10) unsigned NOT NULL,
 				    `type` tinyint unsigned NOT NULL,
 				    PRIMARY KEY (`id`),
-				    FOREIGN KEY (`player_id`) REFERENCES `%2$s` (`id`),
-				    FOREIGN KEY (`server_id`) REFERENCES `%3$s` (`id`),
-				    FOREIGN KEY (`session_id`) REFERENCES `%4$s` (`id`)
+				    FOREIGN KEY (`server_id`) REFERENCES `%2$s` (`id`),
+				    FOREIGN KEY (`session_id`) REFERENCES `%3$s` (`id`)
 				)
-				""".formatted(TABLE_LOGS, TABLE_PLAYERS, TABLE_SERVERS, TABLE_SESSIONS);
+				""".formatted(TABLE_LOGS, TABLE_SERVERS, TABLE_SESSIONS);
 		String createChats = """
 				CREATE TABLE IF NOT EXISTS `%1$s` (
 				    `id` int(10) unsigned NOT NULL,
@@ -293,14 +277,13 @@ public abstract class HikariDB {
 	public boolean initialize() {
 		try (Connection db = this.hikari.getConnection()) {
 			if (db == null) {
-				this.plugin.getLogger().severe("BungeeWeb is disabling. Please check your database settings in your config.yml");
+				this.plugin.getLogger().error("BungeeWeb is disabling. Please check your database settings in your config.yml");
 				return false;
 			}
 			String prefix = this.plugin.getConfig().getString("database.prefix");
 			this.setupTables();
 
 			String sql = String.format("SELECT COUNT(*) FROM `%susers`", prefix);
-			this.plugin.getLogger().info(() -> "SQL: %s".formatted(sql));
 			
 			try (ResultSet rs = db.createStatement().executeQuery(sql)) {
 				if (rs.next() && rs.getInt(1) == 0) {
@@ -310,29 +293,29 @@ public abstract class HikariDB {
 						stm.setString(2, salt);
 						stm.executeUpdate();
 					}
-					this.plugin.getLogger().warning("A new admin account has been created.");
-					this.plugin.getLogger().warning("Both the username and password is 'admin'. Please change the password after first logging in.");
+					this.plugin.getLogger().warn("A new admin account has been created.");
+					this.plugin.getLogger().warn("Both the username and password is 'admin'. Please change the password after first logging in.");
 				}
 			}
 		} catch (SQLException e) {
-			this.plugin.getLogger().severe("Unable to connect to the database. Disabling...");
+			this.plugin.getLogger().error("Unable to connect to the database. Disabling...");
 			e.printStackTrace();
 			return false;
 		}
-		//this.tryUpgradeDatabaseSchema();
 		return true;
 	}
 	
 	public void insertPlayerSession(PlayerSession session) {
 		try (Connection conn = this.hikari.getConnection()) {
-			String sql = "INSERT INTO `%1$s` (`player_id`, `protocol_id`, `ip_address`, `client_id`, `hostname`) VALUES (?, ?, INET6_ATON(?), ?, ?)".formatted(TABLE_SESSIONS);
+			String sql = "INSERT INTO `%1$s` (`player_id`, `protocol_id`, `ip_address`, `port`, `client_id`, `hostname`) VALUES (?, ?, INET6_ATON(?), ?, ?, ?)".formatted(TABLE_SESSIONS);
 			try (PreparedStatement stm = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 				long client = this.plugin.getClientIdManager().getClientId(session.getClient());
 				stm.setLong(1, session.getPlayerId());
 				stm.setInt(2, session.getProtocol());
 				stm.setString(3, session.getIp());
-				stm.setLong(4, client);
-				stm.setString(5, session.getHostname());
+				stm.setInt(4, session.getPort());
+				stm.setLong(5, client);
+				stm.setString(6, session.getHostname());
 				stm.executeUpdate();
 				try (ResultSet rs = stm.getGeneratedKeys()) {
 					rs.next();
@@ -482,11 +465,11 @@ public abstract class HikariDB {
 	}
 	
 	
-	public void logPlayerChat(@NotNull ProxiedPlayer player, String message) {
+	public void logPlayerChat(@NotNull Player player, String message) {
 		String sql = "INSERT INTO `%1$s` (`id`, `message`) VALUES (?, ?)".formatted(TABLE_CHAT);
 		PlayerSession session = this.plugin.getPlayerInfoManager().getActiveSession(player.getUniqueId())
-				.orElseThrow(() -> new IllegalStateException("Could not find any session for player %s (%s)".formatted(player.getName(), player.getUniqueId())));
-		long serverId = this.plugin.getServerIdManager().getServerId(Optional.ofNullable(player.getServer()).map(Server::getInfo).map(ServerInfo::getName).orElse(""));
+				.orElseThrow(() -> new IllegalStateException("Could not find any session for player %s (%s)".formatted(player.getUsername(), player.getUniqueId())));
+		long serverId = getCurrentServerId(player);
 		try (Connection conn = this.hikari.getConnection()) {
 			long logId = this.logBaseEntry(conn, session, serverId, LogType.CHAT);
 			try (PreparedStatement stm = conn.prepareStatement(sql)) {
@@ -499,11 +482,11 @@ public abstract class HikariDB {
 		}
 	}
 	
-	public void logPlayerCommand(@NotNull ProxiedPlayer player, String command) {
+	public void logPlayerCommand(@NotNull Player player, String command) {
 		String sql = "INSERT INTO `%1$s` (`id`, `command`, `arguments`) VALUES (?, ?, ?)".formatted(TABLE_COMMANDS);
 		PlayerSession session = this.plugin.getPlayerInfoManager().getActiveSession(player.getUniqueId())
-				.orElseThrow(() -> new IllegalStateException("Could not find any session for player %s (%s)".formatted(player.getName(), player.getUniqueId())));
-		long serverId = this.plugin.getServerIdManager().getServerId(Optional.ofNullable(player.getServer()).map(Server::getInfo).map(ServerInfo::getName).orElse(""));
+				.orElseThrow(() -> new IllegalStateException("Could not find any session for player %s (%s)".formatted(player.getUsername(), player.getUniqueId())));
+		long serverId = getCurrentServerId(player);
 		Matcher match = COMMAND_PATTERN.matcher(command);
 		if (match.matches()) {
 			try (Connection conn = this.hikari.getConnection()) {
@@ -511,7 +494,7 @@ public abstract class HikariDB {
 				try (PreparedStatement stm = conn.prepareStatement(sql)) {
 					stm.setLong(1, logId);
 					stm.setString(2, match.group(1));
-					stm.setString(3, Optional.ofNullable(match.group(2)).orElse(""));
+					stm.setString(3, Optional.ofNullable(match.group(3)).orElse(""));
 					stm.executeUpdate();
 				}
 			} catch (SQLException e) {
@@ -522,9 +505,9 @@ public abstract class HikariDB {
 		}
 	}
 	
-	public void logPlayerConnect(@NotNull ProxiedPlayer player) {
+	public void logPlayerConnect(@NotNull Player player) {
 		PlayerSession session = this.plugin.getPlayerInfoManager().createNewSession(player);
-		long serverId = this.plugin.getServerIdManager().getServerId(Optional.ofNullable(player.getServer()).map(Server::getInfo).map(ServerInfo::getName).orElse(""));
+		long serverId = getCurrentServerId(player);
 		try (Connection conn = this.hikari.getConnection()) {
 			this.logBaseEntry(conn, session, serverId, LogType.JOIN);
 		} catch (SQLException e) {
@@ -532,10 +515,10 @@ public abstract class HikariDB {
 		}
 	}
 	
-	public void logPlayerDisconnect(@NotNull ProxiedPlayer player) {
+	public void logPlayerDisconnect(@NotNull Player player) {
 		PlayerSession session = this.plugin.getPlayerInfoManager().getActiveSession(player.getUniqueId())
-				.orElseThrow(() -> new IllegalStateException("Could not find any session for player %s (%s)".formatted(player.getName(), player.getUniqueId())));
-		long serverId = this.plugin.getServerIdManager().getServerId(Optional.ofNullable(player.getServer()).map(Server::getInfo).map(ServerInfo::getName).orElse(""));
+				.orElseThrow(() -> new IllegalStateException("Could not find any session for player %s (%s)".formatted(player.getUsername(), player.getUniqueId())));
+		long serverId = getCurrentServerId(player);
 		try (Connection conn = this.hikari.getConnection()) {
 			this.logBaseEntry(conn, session, serverId, LogType.QUIT);
 		} catch (SQLException e) {
@@ -543,11 +526,11 @@ public abstract class HikariDB {
 		}
 	}
 	
-	public void logPlayerKick(@NotNull ProxiedPlayer player, String fallbackServer, String kickMessage) {
+	public void logPlayerKick(@NotNull Player player, String fallbackServer, String kickMessage) {
 		String sql = "INSERT INTO `%1$s` (`id`, `target_server`, `extra`) VALUES (?, ?, ?)".formatted(TABLE_SERVERCHANGES);
 		PlayerSession session = this.plugin.getPlayerInfoManager().getActiveSession(player.getUniqueId())
-				.orElseThrow(() -> new IllegalStateException("Could not find any session for player %s (%s)".formatted(player.getName(), player.getUniqueId())));
-		long serverId = this.plugin.getServerIdManager().getServerId(Optional.ofNullable(player.getServer()).map(Server::getInfo).map(ServerInfo::getName).orElse(""));
+				.orElseThrow(() -> new IllegalStateException("Could not find any session for player %s (%s)".formatted(player.getUsername(), player.getUniqueId())));
+		long serverId = getCurrentServerId(player);
 		long fallbackServerId = this.plugin.getServerIdManager().getServerId(fallbackServer);
 		try (Connection conn = this.hikari.getConnection()) {
 			long logId = this.logBaseEntry(conn, session, serverId, LogType.KICK);
@@ -562,11 +545,11 @@ public abstract class HikariDB {
 		}
 	}
 	
-	public void logPlayerServerSwitch(@NotNull ProxiedPlayer player, String targetServer) {
+	public void logPlayerServerSwitch(@NotNull Player player, String targetServer) {
 		String sql = "INSERT INTO `%1$s` (`id`, `target_server`, `extra`) VALUES (?, ?, '')".formatted(TABLE_SERVERCHANGES);
 		PlayerSession session = this.plugin.getPlayerInfoManager().getActiveSession(player.getUniqueId())
-				.orElseThrow(() -> new IllegalStateException("Could not find any session for player %s (%s)".formatted(player.getName(), player.getUniqueId())));
-		long serverId = this.plugin.getServerIdManager().getServerId(Optional.ofNullable(player.getServer()).map(Server::getInfo).map(ServerInfo::getName).orElse(""));
+				.orElseThrow(() -> new IllegalStateException("Could not find any session for player %s (%s)".formatted(player.getUsername(), player.getUniqueId())));
+		long serverId = getCurrentServerId(player);
 		long fallbackServerId = this.plugin.getServerIdManager().getServerId(targetServer);
 		try (Connection conn = this.hikari.getConnection()) {
 			long logId = this.logBaseEntry(conn, session, serverId, LogType.SERVER_CHANGE);
@@ -581,13 +564,12 @@ public abstract class HikariDB {
 	}
 	
 	private long logBaseEntry(Connection conn, PlayerSession session, long serverId, LogType type) throws SQLException {
-		String sql = "INSERT INTO `%1$s` (`time`, `player_id`, `session_id`, `server_id`, `type`) VALUES (?, ?, ?, ?, ?)".formatted(TABLE_LOGS);
+		String sql = "INSERT INTO `%1$s` (`time`, `session_id`, `server_id`, `type`) VALUES (?, ?, ?, ?, ?)".formatted(TABLE_LOGS);
 		try (PreparedStatement stm = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 			stm.setTimestamp(1, Timestamp.from(Instant.now()));
-			stm.setLong(2, session.getPlayerId());
-			stm.setLong(3, session.getId());
-			stm.setLong(4, serverId);
-			stm.setInt(5, type.ordinal() + 1);
+			stm.setLong(2, session.getId());
+			stm.setLong(3, serverId);
+			stm.setInt(4, type.ordinal() + 1);
 			stm.executeUpdate();
 			try (ResultSet rs = stm.getGeneratedKeys()) {
 				rs.next();
@@ -596,35 +578,12 @@ public abstract class HikariDB {
 		}
 	}
 	
-	
-	
-	
-	
-	/*private boolean checkTableExistence(String table) {
-		try (Connection conn = this.hikari.getConnection()) {
-			try (PreparedStatement stm = conn.prepareStatement("SHOW TABLES LIKE ?")) {
-				stm.setString(1, table);
-				try (ResultSet rs = stm.executeQuery()) {
-					if (rs.next()) {
-						return true;
-					}
-				}
-			}
-		} catch (SQLException e) {
-			throw new RuntimeException(e);
-		}
-		return false;
+	private long getCurrentServerId(@NotNull Player player) {
+		return this.plugin.getServerIdManager().getServerId(player.getCurrentServer()
+				.map(ServerConnection::getServerInfo)
+				.map(ServerInfo::getName)
+				.orElse(""));
 	}
-	
-	private void renameTable(String table, String newName) {
-		try (Connection conn = this.hikari.getConnection()) {
-			try (Statement stm = conn.createStatement()) {
-				stm.executeUpdate("ALTER TABLE `%s` RENAME `%s`".formatted(table.replace("`", ""), newName.replace("`", "")));
-			}
-		} catch (SQLException e) {
-			throw new RuntimeException(e);
-		}
-	}*/
 	
 	/**
 	 * Modify and setup connection properties.
