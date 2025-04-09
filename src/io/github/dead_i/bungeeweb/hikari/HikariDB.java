@@ -564,7 +564,7 @@ public abstract class HikariDB {
 	}
 	
 	private long logBaseEntry(Connection conn, PlayerSession session, long serverId, LogType type) throws SQLException {
-		String sql = "INSERT INTO `%1$s` (`time`, `session_id`, `server_id`, `type`) VALUES (?, ?, ?, ?, ?)".formatted(TABLE_LOGS);
+		String sql = "INSERT INTO `%1$s` (`time`, `session_id`, `server_id`, `type`) VALUES (?, ?, ?, ?)".formatted(TABLE_LOGS);
 		try (PreparedStatement stm = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 			stm.setTimestamp(1, Timestamp.from(Instant.now()));
 			stm.setLong(2, session.getId());
