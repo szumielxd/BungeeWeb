@@ -3,11 +3,13 @@
 	"language": {
 		"general": {
 			"username": "Username",
+			"servername": "ServerName",
 			"password": "Password",
 			"uuid": "UUID",
 			"group": "Group",
 			"login": "Log in",
-			"logout": "Logout"
+			"logout": "Logout",
+			"activity":  "Activity"
 		},
 		
 		"groups": [
@@ -32,29 +34,30 @@
 			"latestlogs": "Latest Logs",
 			"filter": "Filter",
 			"loading": "Loading...",
-			"1": {
-				"type": "chat",
-				"entry": "({SERVER}){PLAYER}: {CONTENT}"
+			"kick_fallback_server": "to {FALLBACK_SERVER} ",
+			"chat": {
+				"type": "Chat",
+				"entry": "{PLAYER}: {MESSAGE}"
 			},
-			"2": {
-				"type": "command",
-				"entry": "({SERVER}){PLAYER} ran the command {CONTENT}"
+			"command": {
+				"type": "Command",
+				"entry": "{PLAYER} ran the command /{COMMAND} {ARGUMENTS}"
 			},
-			"3": {
-				"type": "join",
-				"entry": "{PLAYER} joined the proxy from {CONTENT}"
+			"join": {
+				"type": "Join",
+				"entry": "{PLAYER} joined the proxy"
 			},
-			"4": {
-				"type": "quit",
-				"entry": "({SERVER}){PLAYER} disconnected from the proxy"
+			"quit": {
+				"type": "Quit",
+				"entry": "{PLAYER} disconnected from the proxy"
 			},
-			"5": {
-				"type": "kick",
-				"entry": "{PLAYER} was kicked from {CONTENT}"
+			"kick": {
+				"type": "Kick",
+				"entry": "{PLAYER} was kicked {KICK_FALLBACK_SERVER}for {KICK_REASON}"
 			},
-			"6": {
-				"type": "serverchange",
-				"entry": "({SERVER}){PLAYER} switched to {CONTENT}"
+			"server_change": {
+				"type": "Server Change",
+				"entry": "{PLAYER} switched to {TARGET_SERVER}"
 			}
 		},
 		

@@ -5,10 +5,12 @@ import java.util.Map;
 
 import com.zaxxer.hikari.HikariConfig;
 
+import io.github.dead_i.bungeeweb.BungeeWeb;
+
 public class MysqlDB extends HikariDB {
 
-	public MysqlDB(String host, String database, Map<String, String> properties, String user, String pass) {
-		super(host, database, properties, user, pass);
+	public MysqlDB(BungeeWeb plugin, String host, String database, Map<String, String> properties, String user, String pass) {
+		super(plugin, host, database, properties, user, pass);
 	}
 
 	/**
@@ -43,7 +45,7 @@ public class MysqlDB extends HikariDB {
 		properties.putIfAbsent("alwaysSendSetIsolation", "false");
 		properties.putIfAbsent("cacheCallableStmts", "true");
 		properties.putIfAbsent("serverTimezone", "UTC");
-		properties.forEach((k,v) -> config.addDataSourceProperty(k, v));
+		properties.forEach(config::addDataSourceProperty);
 	}
 
 	/**
@@ -65,6 +67,8 @@ public class MysqlDB extends HikariDB {
 			config.setDriverClassName("com.mysql.jdbc.Driver");
 		}
 		config.setJdbcUrl("jdbc:mysql://" + address + ":" + port + "/" + database);
+		config.addDataSourceProperty("characterEncoding","utf8");
+		config.addDataSourceProperty("useUnicode","true");
 		config.setUsername(user);
 		config.setPassword(password);
 	}

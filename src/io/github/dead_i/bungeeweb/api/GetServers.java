@@ -1,37 +1,36 @@
 package io.github.dead_i.bungeeweb.api;
 
-import com.google.gson.Gson;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.jetbrains.annotations.NotNull;
+
+import com.velocitypowered.api.proxy.Player;
+
 import io.github.dead_i.bungeeweb.APICommand;
 import io.github.dead_i.bungeeweb.BungeeWeb;
-import net.md_5.bungee.api.config.ServerInfo;
-import net.md_5.bungee.api.connection.ProxiedPlayer;
-import net.md_5.bungee.api.plugin.Plugin;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.util.HashMap;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 public class GetServers extends APICommand {
-    private Gson gson = new Gson();
+	
+	public GetServers(@NotNull BungeeWeb plugin) {
+		super(plugin, "getservers", "players");
+	}
 
-    public GetServers() {
-        super("getservers", "players");
-    }
-
-    @Override
-    public void execute(Plugin plugin, HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException {
-        HashMap<String, HashMap<String, String>> out = new HashMap<>();
-        for (ServerInfo info : plugin.getProxy().getServers().values()) {
-            HashMap<String, String> players = new HashMap<String, String>();
-            int i = 0;
-            for (ProxiedPlayer p : info.getPlayers()) {
-                players.put(BungeeWeb.getUUID(p), p.getName());
-                i++;
-                if (i > 50) break;
-            }
-            out.put(info.getName(), players);
-        }
-        res.getWriter().print(gson.toJson(out));
-    }
+	@Override
+	public void execute(HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException {
+		res.getWriter().print(GSON_PARSER.toJson(
+				this.plugin.getProxy().getAllServers().stream()
+						.collect(Collectors.toMap(
+								s -> s.getServerInfo().getName(),
+								s -> playersByUniqueId(s.getPlayersConnected())))));
+	}
+	
+	private @NotNull Map<UUID, String> playersByUniqueId(@NotNull Collection<Player> players) {
+		return players.stream().collect(Collectors.toMap(Player::getUniqueId, Player::getUsername));
+	}
 }

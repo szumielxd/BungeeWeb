@@ -1,0 +1,173 @@
+/* Dark CSS */
+body {
+	background-color:hsl(213, 15%, 13%);
+}
+.navbar {
+	background-color:#1c2126;
+	border-bottom-color:#23282f;
+}
+
+.content-box {
+	background-color:#181c20;
+	border-color:#272d35;
+	color:#818b98;
+}
+
+.dialog-box {
+	border-color:#272d35;
+	color:#818b98;
+}
+
+.dialog {
+	color:#818b98;
+}
+
+.dialog .filters .label {
+	color:#aab2bb;
+}
+
+.dialog .resizer {
+	background-color:#424b57;
+}
+
+.dialog .attribute {
+	background-color:#14171a80;
+}
+
+.dialog #skinpreview, .dialog .attribute {
+	border-bottom-color:#252b31;
+}
+
+.dialog h1, .dialog h2, .dialog h3, .dialog h4 {
+	color:#5b6571;
+}
+
+.mask {
+	background-color:#0b081280;
+	backdrop-filter:blur(20px);
+}
+
+.log li {
+	border-bottom-color:#272d34;
+}
+
+.log li .fade {
+	color:#4f5863;
+}
+
+.dialog ul.log {
+	background-color:#16191d;
+	border-color:#2e3238;
+}
+
+.dialog ul li .log-face {
+	background-color:#181c20;
+}
+
+.dialog ul li:nth-child(even) .log-face {
+	background-color:#e6eff903;
+}
+
+.dialog .info-box {
+	background-color:#181c2080;
+}
+
+.dialog .logs-box {
+	background-color:#181c20;
+}
+
+.dialog .log li.selected > .log-face {
+	background-color:#332442;
+}
+
+.dialog .log li.selected > .log-face:hover {
+	background-color:#402060;
+}
+
+.graph {
+	background-color:#181c20;
+	border-color:#272d35;
+}
+
+#logs ul.log {
+	color:#818b98;
+}
+
+#logs .log li .log-face {
+	border-color:#29303d;
+}
+
+#logs .log li .log-face:hover, #logs .log li.active .log-face {
+	background-color:#252b37;
+}
+
+#logs .log li.selected > .log-face {
+	background-color:#332442;
+}
+
+#logs .log li.selected > .log-face:hover {
+	background-color:#402060;
+}
+
+#logs .log li.entry {
+	background-color: #181d25;
+}
+
+#logs .log-extra > span > span {
+	color:#9da5af;
+}
+
+span[replacement="player"] {
+    color: #b8bfc6;
+}
+
+.login .main {
+	background-color:#1f242e;
+	border-color:#29303d;
+	color:#818b98;
+}
+
+.login h1 {
+	background-color:#232834;
+	color:#9da5af;
+}
+
+.login input {
+	background-color:#8592ad;
+	border-color:#b3bbcc;
+}
+
+.scrollable::-webkit-scrollbar {
+	width:10px;
+}
+.scrollable::-webkit-scrollbar-thumb {
+	border-radius:30px;
+	background-color:hsl(213, 15%, 21%);
+}
+.scrollable::-webkit-scrollbar-track {
+	border-right-width:4px;
+	border-right-style:solid;
+	border-right-color:hsl(213, 15%, 14%);
+}
+
+.footer {
+	color:#818898;
+}
+
+/* HighCharts */
+:root {
+	--highcharts-background-color:none;
+	--highcharts-neutral-color-100:hsl(213 14% 50% / 1);
+	--highcharts-neutral-color-80:hsl(213 14% 40% / 1);
+	--highcharts-neutral-color-60:hsl(213 14% 30% / 1);
+	--highcharts-neutral-color-40:hsl(213 14% 20% / 1);
+	--highcharts-neutral-color-20:hsl(213 14% 15% / 1);
+	--highcharts-neutral-color-10:hsl(213 11% 15% / 1);
+	--highcharts-neutral-color-5:hsl(213 14% 10% / 1);
+	--highcharts-neutral-color-3:hsl(213 14% 6% / 1);
+	--highcharts-highlight-color-100:rgb(122, 167, 255);
+	--highcharts-highlight-color-80:rgb(108, 144, 214);
+	--highcharts-highlight-color-60:rgb(94, 121, 173);
+	--highcharts-highlight-color-20:rgb(65, 74, 92);
+	--highcharts-highlight-color-10:rgb(58, 63, 71);
+}

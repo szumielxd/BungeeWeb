@@ -5,10 +5,12 @@ import java.util.Map;
 
 import com.zaxxer.hikari.HikariConfig;
 
+import io.github.dead_i.bungeeweb.BungeeWeb;
+
 public class MariaDB extends HikariDB {
 
-	public MariaDB(String host, String database, Map<String, String> properties, String user, String pass) {
-		super(host, database, properties, user, pass);
+	public MariaDB(BungeeWeb plugin, String host, String database, Map<String, String> properties, String user, String pass) {
+		super(plugin, host, database, properties, user, pass);
 	}
 
 	/**
@@ -30,7 +32,7 @@ public class MariaDB extends HikariDB {
 	protected void setupProperties(HikariConfig config, Map<String, String> properties) {
 		properties = new HashMap<>(properties);
 		properties.putIfAbsent("serverTimezone", "UTC");
-		properties.forEach((k,v) -> config.addDataSourceProperty(k, v));
+		properties.forEach(config::addDataSourceProperty);
 	}
 
 	/**
@@ -49,6 +51,8 @@ public class MariaDB extends HikariDB {
 		config.addDataSourceProperty("serverName", address);
 		config.addDataSourceProperty("port", port);
 		config.addDataSourceProperty("databaseName", database);
+		config.addDataSourceProperty("characterEncoding","utf8");
+		config.addDataSourceProperty("useUnicode","true");
 		config.setUsername(user);
 		config.setPassword(password);
 	}

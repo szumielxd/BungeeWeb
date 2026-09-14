@@ -1,36 +1,40 @@
 package io.github.dead_i.bungeeweb.api;
 
-import io.github.dead_i.bungeeweb.APICommand;
-import io.github.dead_i.bungeeweb.BungeeWeb;
-import net.md_5.bungee.api.plugin.Plugin;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 
+import org.jetbrains.annotations.NotNull;
+
+import io.github.dead_i.bungeeweb.APICommand;
+import io.github.dead_i.bungeeweb.BungeeWeb;
+import io.github.dead_i.bungeeweb.SecureUtils;
+import io.github.dead_i.bungeeweb.hikari.HikariDB;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
 public class CreateUser extends APICommand {
-    public CreateUser() {
-        super("createuser", "settings.users.create");
+    
+	public CreateUser(@NotNull BungeeWeb plugin) {
+        super(plugin, "createuser", "settings.users.create");
     }
 
     @Override
-    public void execute(Plugin plugin, HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
+    public void execute(HttpServletRequest req, HttpServletResponse res, String[] args) throws IOException, SQLException {
         String user = req.getParameter("user");
         String pass = req.getParameter("pass");
         String group = req.getParameter("group");
-        String salt = BungeeWeb.salt();
+        String salt = SecureUtils.salt();
 
         if (user != null && !user.isEmpty() && pass != null && !pass.isEmpty() && group != null && BungeeWeb.isNumber(group)) {
             if (user.length() <= 16) {
                 int groupid = Integer.parseInt(group);
                 if (groupid < BungeeWeb.getGroupPower(req)) {
-                	try (Connection conn = BungeeWeb.getDatabase()) {
-                		try (PreparedStatement stm = conn.prepareStatement(String.format("INSERT INTO `%susers` (`user`, `pass`, `salt`, `group`) VALUES(?, ?, ?, ?)", BungeeWeb.getConfig().getString("database.prefix")))) {
+                	try (Connection conn = this.plugin.getDatabaseManager().connect()) {
+                		try (PreparedStatement stm = conn.prepareStatement(String.format("INSERT INTO `%1$s` (`user`, `pass`, `salt`, `group`) VALUES(?, ?, ?, ?)", HikariDB.TABLE_USERS))) {
                             stm.setString(1, user);
-                            stm.setString(2, BungeeWeb.encrypt(pass, salt));
+                            stm.setString(2, SecureUtils.encrypt(pass, salt));
                             stm.setString(3, salt);
                             stm.setInt(4, groupid);
                             stm.executeUpdate();

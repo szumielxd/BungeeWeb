@@ -1,288 +1,279 @@
 package io.github.dead_i.bungeeweb;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.io.ByteStreams;
-import io.github.dead_i.bungeeweb.commands.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.handler.ContextHandler;
+import org.eclipse.jetty.server.session.DefaultSessionIdManager;
+import org.eclipse.jetty.server.session.SessionHandler;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+
+import com.google.inject.Inject;
+import com.moandjiezana.toml.Toml;
+import com.velocitypowered.api.event.Subscribe;
+import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
+import com.velocitypowered.api.plugin.Plugin;
+import com.velocitypowered.api.plugin.annotation.DataDirectory;
+import com.velocitypowered.api.proxy.Player;
+import com.velocitypowered.api.proxy.ProxyServer;
+
+import io.github.dead_i.bungeeweb.commands.ReloadConfig;
 import io.github.dead_i.bungeeweb.hikari.HikariDB;
 import io.github.dead_i.bungeeweb.hikari.MariaDB;
 import io.github.dead_i.bungeeweb.hikari.MysqlDB;
-import io.github.dead_i.bungeeweb.listeners.*;
-import net.md_5.bungee.api.config.ServerInfo;
-import net.md_5.bungee.api.connection.ProxiedPlayer;
-import net.md_5.bungee.api.plugin.Plugin;
-import net.md_5.bungee.config.Configuration;
-import net.md_5.bungee.config.ConfigurationProvider;
-import net.md_5.bungee.config.YamlConfiguration;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.handler.ContextHandler;
-import org.eclipse.jetty.server.session.HashSessionIdManager;
-import org.eclipse.jetty.server.session.HashSessionManager;
-import org.eclipse.jetty.server.session.SessionHandler;
-import org.eclipse.jetty.util.log.StdErrLog;
-import org.eclipse.jetty.util.security.Credential;
-import javax.servlet.http.HttpServletRequest;
-import java.io.*;
-import java.security.SecureRandom;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.Optional;
-import java.util.Properties;
-import java.util.Scanner;
-import java.util.concurrent.TimeUnit;
+import io.github.dead_i.bungeeweb.listeners.ChannelListener;
+import io.github.dead_i.bungeeweb.listeners.ChatListener;
+import io.github.dead_i.bungeeweb.listeners.PlayerDisconnectListener;
+import io.github.dead_i.bungeeweb.listeners.PostLoginListener;
+import io.github.dead_i.bungeeweb.listeners.ServerConnectedListener;
+import io.github.dead_i.bungeeweb.listeners.ServerKickListener;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 
-public class BungeeWeb extends Plugin {
-    private static Configuration config;
-    private static Configuration defaultConfig;
-    private static HikariDB hikari;
+@Plugin(
+		id = "id----",
+		name = "@pluginName@",
+		version = "@version@",
+		authors = { "@author@" },
+		description = "@description@",
+		url = "https://github.com/szumielxd/BungeeWeb/"
+)
+public class BungeeWeb {
+	
+	@Getter @Setter(AccessLevel.PRIVATE) private static BungeeWeb instance;
+	@Getter private Toml config;
+	@Getter private ProxyServer proxy;
+	@Getter private Logger logger;
+	@Getter private Path dataFolder;
+	private @Nullable HikariDB databaseManager;
+	private @Nullable PlayerInfoManager playerInfoManager;
+	private @Nullable ServerIdManager serverIdManager;
+	private @Nullable ClientIdManager clientIdManager;
+	
+	
+	@Inject
+	public BungeeWeb(ProxyServer proxy, Logger logger, @DataDirectory final Path dataFolder) {
+		setInstance(this);
+		this.proxy = proxy;
+		this.logger = logger;
+		this.dataFolder = dataFolder;
+	}
+	
+	
+	//Function for loading config
+	public void reloadConfig() {
+		File file = this.getDataFolder().resolve("config.toml").toFile();
+		if (!file.getParentFile().exists()) {
+			file.getParentFile().mkdirs();
+		}
+		if (!file.exists()) {
+			try (InputStream input = getClass().getResourceAsStream("/" + file.getName())) {
+				if (input != null) {
+					Files.copy(input, file.toPath());
+				} else {
+					file.createNewFile();
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+				return;
+			}
+		}
+		this.config = new Toml().read(file);
+	}
+	
+	@Subscribe
+	public void onProxyInitialization(ProxyInitializeEvent event) {
 
-    @Override
-    public void onEnable() {
+		// Get configuration
+		reloadConfig();
 
-        // Get configuration
-        reloadConfig(this);
+		// Setup locales
+		setupDirectory("lang");
+		setupLocale("en");
+		setupLocale("fr");
+		setupLocale("es");
+		setupLocale("de");
+		setupLocale("it");
 
-        // Setup locales
-        setupDirectory("lang");
-        setupLocale("en");
-        setupLocale("fr");
-        setupLocale("es");
-        setupLocale("de");
-        setupLocale("it");
+		// Setup directories
+		setupDirectory("themes");
 
-        // Setup directories
-        setupDirectory("themes");
+		// Connect to the database
+		String hostName = getConfig().getString("database.host") + ":" + getConfig().getLong("database.port");
+		String dbName = getConfig().getString("database.db");
+		Map<String, String> dbProperties = Map.of("useUnicode", "true", "characterEncoding", "utf8");
+		String dbUser = getConfig().getString("database.user");
+		String dbPasswd = getConfig().getString("database.pass");
+		this.databaseManager = (getConfig().getString("database.mode", "MySQL").equalsIgnoreCase("MySQL")?
+				new MysqlDB(this, hostName, dbName, dbProperties, dbUser, dbPasswd)
+				: new MariaDB(this, hostName, dbName, dbProperties, dbUser, dbPasswd))
+				.setup();
+		
+		
+		// Initial database table setup
+		if (!this.databaseManager.initialize()) {
+			return;
+		}
+		// Setup managers
+		this.playerInfoManager = new PlayerInfoManager(this);
+		this.serverIdManager = new ServerIdManager(databaseManager);
+		this.clientIdManager = new ClientIdManager(databaseManager);
+		this.playerInfoManager.start();
 
-        // Connect to the database
-        hikari = (getConfig().getString("database.mode", "MySQL").equalsIgnoreCase("MySQL")? new MysqlDB(getConfig().getString("database.host") + ":" + getConfig().getInt("database.port"), getConfig().getString("database.db"), ImmutableMap.of("useUnicode", "true", "characterEncoding", "utf8"), getConfig().getString("database.user"), getConfig().getString("database.pass"))
-                : new MariaDB(getConfig().getString("database.host") + ":" + getConfig().getInt("database.port"), getConfig().getString("database.db"), ImmutableMap.of("useUnicode", "true", "characterEncoding", "utf8"), getConfig().getString("database.user"), getConfig().getString("database.pass"))).setup();
+		// Start automatic chunking
+		setupPurging("log");
+		setupPurging("stats");
 
-        // Initial database table setup
-        try (Connection db = getDatabase()) {
-        	if (db == null) {
-                getLogger().severe("BungeeWeb is disabling. Please check your database settings in your config.yml");
-                return;
-            }
-        	String prefix = getConfig().getString("database.prefix");
-            try (Statement stm = db.createStatement()) { stm.executeUpdate(String.format("CREATE TABLE IF NOT EXISTS `%slog` (`id` int(11) NOT NULL AUTO_INCREMENT, `time` int(10) NOT NULL, `type` int(2) NOT NULL, `uuid` varchar(32) NOT NULL, `username` varchar(16) NOT NULL, `server` varchar(32) NOT NULL DEFAULT '', `content` varchar(256) NOT NULL DEFAULT '', PRIMARY KEY (`id`)) CHARACTER SET utf8", prefix)); }
-            try (Statement stm = db.createStatement()) { stm.executeUpdate(String.format("CREATE TABLE IF NOT EXISTS `%susers` (`id` int(4) NOT NULL AUTO_INCREMENT, `user` varchar(16) NOT NULL, `pass` varchar(32) NOT NULL, `salt` varchar(16) NOT NULL, `group` int(1) NOT NULL DEFAULT '1', PRIMARY KEY (`id`)) CHARACTER SET utf8", prefix)); }
-            try (Statement stm = db.createStatement()) { stm.executeUpdate(String.format("CREATE TABLE IF NOT EXISTS `%sstats` (`id` int(11) NOT NULL AUTO_INCREMENT, `time` int(10) NOT NULL, `playercount` int(6) NOT NULL DEFAULT -1, `maxplayers` int(6) NOT NULL DEFAULT -1, `activity` int(12) NOT NULL DEFAULT -1, PRIMARY KEY (`id`)) CHARACTER SET utf8", prefix)); }
+		// Register listeners
+		getProxy().getEventManager().register(this, new ChatListener(this));
+		getProxy().getEventManager().register(this, new PlayerDisconnectListener(this));
+		getProxy().getEventManager().register(this, new PostLoginListener(this));
+		getProxy().getEventManager().register(this, new ServerConnectedListener(this));
+		getProxy().getEventManager().register(this, new ServerKickListener(this));
+		getProxy().getEventManager().register(this, new ChannelListener(this));
 
-            try (ResultSet rs = db.createStatement().executeQuery(String.format("SELECT COUNT(*) FROM `%susers`", prefix))) {
-            	while (rs.next()) if (rs.getInt(1) == 0) {
-                    String salt = salt();
-                    try (PreparedStatement stm = db.prepareStatement(String.format("INSERT INTO `%susers` (`user`, `pass`, `salt`, `group`) VALUES('admin', ?, ?, 3)", prefix))) { 
-                    	stm.setString(1, encrypt("admin", salt));
-                    	stm.setString(2, salt);
-                    	stm.executeUpdate();
-                    }
-                    getLogger().warning("A new admin account has been created.");
-                    getLogger().warning("Both the username and password is 'admin'. Please change the password after first logging in.");
-                }
-            }
-        } catch (SQLException e) {
-            getLogger().severe("Unable to connect to the database. Disabling...");
-            e.printStackTrace();
-            return;
-        }
+		// Register commands
+		var commandManager = getProxy().getCommandManager();
+		var reloadMeta = commandManager.metaBuilder("bwreload").plugin(this).build();
+		commandManager.register(reloadMeta, new ReloadConfig(this));
 
-        // Start automatic chunking
-        setupPurging("log");
-        setupPurging("stats");
+		// Graph loops
+		long inc = getConfig().getLong("server.statscheck");
+		if (inc > 0) {
+			getProxy().getScheduler().buildTask(this, new ServerStatsCheck(this))
+					.delay(inc, TimeUnit.SECONDS)
+					.repeat(inc, TimeUnit.SECONDS)
+					.schedule();
+			getProxy().getScheduler().buildTask(this, new ClientStatsCheck(this))
+					.delay(inc, TimeUnit.SECONDS)
+					.repeat(inc, TimeUnit.SECONDS)
+					.schedule();
+		}
 
-        // Register listeners
-        getProxy().getPluginManager().registerListener(this, new ChatListener(this));
-        getProxy().getPluginManager().registerListener(this, new PlayerDisconnectListener(this));
-        getProxy().getPluginManager().registerListener(this, new PostLoginListener(this));
-        getProxy().getPluginManager().registerListener(this, new ServerConnectedListener(this));
-        getProxy().getPluginManager().registerListener(this, new ServerKickListener(this));
+		// Setup the context
+		ContextHandler context = new ContextHandler("/");
+		SessionHandler sessions = new SessionHandler();
+		sessions.setHandler(new WebHandler(this));
+		context.setHandler(sessions);
 
-        // Register commands
-        getProxy().getPluginManager().registerCommand(this, new ReloadConfig(this));
+		// Setup the server
+		final Server server = new Server(getConfig().getLong("server.port").intValue());
+		server.setSessionIdManager(new DefaultSessionIdManager(server));
+		server.setHandler(sessions);
+		server.setStopAtShutdown(true);
 
-        // Graph loops
-        int inc = getConfig().getInt("server.statscheck");
-        if (inc > 0) getProxy().getScheduler().schedule(this, new StatusCheck(this, inc), inc, inc, TimeUnit.SECONDS);
+		// Start listening
+		getProxy().getScheduler().buildTask(this, () -> {
+			try {
+				server.start();
+			} catch(Exception e) {
+				getLogger().warn("Unable to bind web server to port.");
+				e.printStackTrace();
+			}
+		}).schedule();
+	}
 
-        // Setup logging
-        org.eclipse.jetty.util.log.Log.setLog(new JettyLogger());
-        Properties p = new Properties();
-        p.setProperty("org.eclipse.jetty.LEVEL", "WARN");
-        StdErrLog.setProperties(p);
+	public void setupLocale(@NotNull String lang) {
+		String filename = "lang/" + lang + ".json";
+		Path file = getDataFolder().resolve(filename);
+		try {
+			if (Files.notExists(file)) {
+				try (InputStream content = getClass().getResourceAsStream("/" + filename)) {
+					Files.write(file, content.readAllBytes(), StandardOpenOption.CREATE);
+				}
+			}
+		} catch (FileAlreadyExistsException e) {
+			// file already exists
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 
-        // Setup the context
-        ContextHandler context = new ContextHandler("/");
-        SessionHandler sessions = new SessionHandler(new HashSessionManager());
-        sessions.setHandler(new WebHandler(this));
-        context.setHandler(sessions);
+	public void setupDirectory(@NotNull String directory) {
+		Path dir = getDataFolder().resolve(directory);
+		try {
+			if (Files.notExists(dir)) {
+				try (InputStream content = getClass().getResourceAsStream("/" + directory + "/README.md")) {
+					this.getLogger().info("XXX: `%s`".formatted(directory));
+					Files.createDirectory(dir);
+					Path readme = dir.resolve("REAMDE.md");
+					Files.write(readme, content.readAllBytes(), StandardOpenOption.CREATE);
+				}
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 
-        // Setup the server
-        final Server server = new Server(getConfig().getInt("server.port"));
-        server.setSessionIdManager(new HashSessionIdManager());
-        server.setHandler(sessions);
-        server.setStopAtShutdown(true);
+	public void setupPurging(@NotNull String type) {
+		/*int days = getConfig().getInt("server." + type + "days");
+		int purge = getConfig().getInt("server.purge", 10);
+		if (purge > 0 && days > 0) {
+			getProxy().getScheduler().schedule(this, new PurgeScheduler(this, type, days), purge, purge, TimeUnit.MINUTES);
+		}*/
+	}
+	
+	public @NotNull PlayerInfoManager getPlayerInfoManager() {
+		return Optional.ofNullable(this.playerInfoManager)
+				.orElseThrow(() -> new IllegalStateException("BungeeWeb is not initialized"));
+	}
+	
+	public @NotNull ServerIdManager getServerIdManager() {
+		return Optional.ofNullable(this.serverIdManager)
+				.orElseThrow(() -> new IllegalStateException("BungeeWeb is not initialized"));
+	}
+	
+	public @NotNull ClientIdManager getClientIdManager() {
+		return Optional.ofNullable(this.clientIdManager)
+				.orElseThrow(() -> new IllegalStateException("BungeeWeb is not initialized"));
+	}
+	
+	public @NotNull HikariDB getDatabaseManager() {
+		return Optional.ofNullable(this.databaseManager)
+				.orElseThrow(() -> new IllegalStateException("BungeeWeb is not initialized"));
+	}
 
-        // Start listening
-        getProxy().getScheduler().runAsync(this, () -> {
-        	try {
-                server.start();
-            } catch(Exception e) {
-                getLogger().warning("Unable to bind web server to port.");
-                e.printStackTrace();
-            }
-        });
-    }
+	public static String getUUID(Player p) {
+		return p.getUniqueId().toString().replace("-", "");
+	}
 
-    public void setupLocale(String lang) {
-        try {
-            String filename = "lang/" + lang + ".json";
-            File file = new File(getDataFolder(), filename);
-            if (!file.exists()) file.createNewFile();
-            ByteStreams.copy(getResourceAsStream(filename), new FileOutputStream(file));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+	public List<Object> getGroupPermissions(int group) {
+		List<Object> permissions = new ArrayList<>();
 
-    public void setupDirectory(String directory) {
-        File dir = new File(getDataFolder(), directory);
-        try {
-            if (!dir.exists()) {
-                dir.mkdir();
-                File readme = new File(dir, "REAMDE.md");
-                readme.createNewFile();
-                ByteStreams.copy(getResourceAsStream(directory + "/README.md"), new FileOutputStream(readme));
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+		for (int i = group; i > 0; i--) {
+			String key = "permissions.group" + i;
+			permissions.addAll(config.getList(key));
+		}
 
-    public void setupPurging(String type) {
-        int days = getConfig().getInt("server." + type + "days");
-        int purge = getConfig().getInt("server.purge", 10);
-        if (purge > 0 && days > 0) {
-            getProxy().getScheduler().schedule(this, new PurgeScheduler(type, days), purge, purge, TimeUnit.MINUTES); // NO WAY! -> getProxy().getScheduler().schedule(this, new PurgeScheduler("stats", days), purge, purge, TimeUnit.MINUTES);
-        }
-    }
+		return permissions;
+	}
 
-    public static Configuration getConfig() {
-        return config;
-    }
+	public static int getGroupPower(HttpServletRequest req) {
+		int group = (Integer) req.getSession().getAttribute("group");
+		if (group >= 3) group++;
+		return group;
+	}
 
-    public static void reloadConfig(Plugin plugin) {
-        if (!plugin.getDataFolder().exists()) plugin.getDataFolder().mkdir();
-        ConfigurationProvider provider = ConfigurationProvider.getProvider(YamlConfiguration.class);
-        InputStream defaultStream = plugin.getResourceAsStream("config.yml");
-        File configFile = new File(plugin.getDataFolder(), "config.yml");
-        try {
-            if (!configFile.exists()) {
-                configFile.createNewFile();
-                try (FileOutputStream out = new FileOutputStream(configFile)) {
-                    ByteStreams.copy(defaultStream, out);
-                    plugin.getLogger().warning("A new configuration file has been created. Please edit config.yml and restart BungeeCord.");
-                    return;
-                }
-            }
-            config = provider.load(configFile);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        try (Scanner scanner = new Scanner(defaultStream, "UTF-8").useDelimiter("\\A")) {
-            defaultConfig = provider.load(scanner.next());
-        }
-    }
-
-    public static Connection getDatabase() throws SQLException {
-        return hikari.connect();
-    }
-
-    public static void log(Plugin plugin, ProxiedPlayer player, int type) {
-        log(plugin, player, type, "");
-    }
-
-    public static void log(Plugin plugin, final ProxiedPlayer player, final int type, final String content) {
-    	final String server = Optional.ofNullable(player.getServer()).map(srv -> srv.getInfo()).map(ServerInfo::getName).orElse("");
-        plugin.getProxy().getScheduler().runAsync(plugin, () -> {
-            try (Connection conn = getDatabase()) {
-            	try (PreparedStatement stm = conn.prepareStatement(String.format("INSERT INTO `%slog` (`time`, `type`, `uuid`, `username`, `server`, `content`) VALUES(?, ?, ?, ?, ?, ?)", getConfig().getString("database.prefix")))) {
-            		stm.setLong(1, System.currentTimeMillis() / 1000);
-                    stm.setInt(2, type);
-                    stm.setString(3, getUUID(player));
-                    stm.setString(4, player.getName());
-                    stm.setString(5, server.length() > 32 ? content.substring(0, 31) : server);
-                    stm.setString(6, content.length() > 256 ? content.substring(0, 255) : content);
-                    stm.executeUpdate();
-            	}
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
-        });
-    }
-
-    public static String getUUID(ProxiedPlayer p) {
-        return p.getUniqueId().toString().replace("-", "");
-    }
-
-    public static ResultSet getLogin(String user, String pass) {
-        if (user == null || pass == null) return null;
-        try (Connection conn = getDatabase()) {
-        	try (PreparedStatement st = conn.prepareStatement(String.format("SELECT * FROM `%susers` WHERE `user`=?", BungeeWeb.getConfig().getString("database.prefix")))) {
-                st.setString(1, user);
-                ResultSet rs = st.executeQuery();
-                while (rs.next()) if (rs.getString("pass").equals(BungeeWeb.encrypt(pass + rs.getString("salt")))) return rs;
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        
-        return null;
-    }
-
-    public static List<Object> getGroupPermissions(int group) {
-        List<Object> permissions = new ArrayList<>();
-
-        for (int i = group; i > 0; i--) {
-            String key = "permissions.group" + i;
-            permissions.addAll(config.getList(key, defaultConfig.getList(key)));
-        }
-
-        return permissions;
-    }
-
-    public static int getGroupPower(HttpServletRequest req) {
-        int group = (Integer) req.getSession().getAttribute("group");
-        if (group >= 3) group++;
-        return group;
-    }
-
-    public static String encrypt(String pass) {
-        return Credential.MD5.digest(pass).split(":")[1];
-    }
-
-    public static String encrypt(String pass, String salt) {
-        return encrypt(pass + salt);
-    }
-
-    public static String salt() {
-        byte[] salt = new byte[16];
-        new SecureRandom().nextBytes(salt);
-        return Base64.getEncoder().encodeToString(salt).substring(0, 16);
-    }
-
-    public static boolean isNumber(String number) {
-        int o;
-        try {
-            o = Integer.parseInt(number);
-        } catch (NumberFormatException ignored) {
-            return false;
-        }
-        return o >= 0;
-    }
+	public static boolean isNumber(String number) {
+		try {
+			return Long.parseLong(number) >= 0;
+		} catch (NumberFormatException ignored) {
+			return false;
+		}
+	}
 }

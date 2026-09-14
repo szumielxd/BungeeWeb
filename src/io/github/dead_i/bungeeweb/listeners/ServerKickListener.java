@@ -1,23 +1,35 @@
 package io.github.dead_i.bungeeweb.listeners;
 
+import java.util.Optional;
+
+import org.jetbrains.annotations.NotNull;
+
+import com.velocitypowered.api.event.Subscribe;
+import com.velocitypowered.api.event.player.KickedFromServerEvent;
+import com.velocitypowered.api.proxy.server.RegisteredServer;
+import com.velocitypowered.api.proxy.server.ServerInfo;
+
 import io.github.dead_i.bungeeweb.BungeeWeb;
-import net.md_5.bungee.api.chat.BaseComponent;
-import net.md_5.bungee.api.event.ServerKickEvent;
-import net.md_5.bungee.api.plugin.Listener;
-import net.md_5.bungee.api.plugin.Plugin;
-import net.md_5.bungee.event.EventHandler;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
-public class ServerKickListener implements Listener {
-    private Plugin plugin;
+@RequiredArgsConstructor
+public class ServerKickListener {
+	
+	@NonNull private final @NotNull BungeeWeb plugin;
 
-    public ServerKickListener(Plugin plugin) {
-        this.plugin = plugin;
-    }
-
-    @EventHandler
-    public void onServerKick(ServerKickEvent event) {
-        if (event.getPlayer() != null && event.getPlayer().getServer() != null) {
-            BungeeWeb.log(plugin, event.getPlayer(), 5, event.getPlayer().getServer().getInfo().getName() + ": " + BaseComponent.toPlainText(event.getKickReasonComponent()));
-        }
-    }
+	@Subscribe
+	public void onServerKick(@NotNull KickedFromServerEvent event) {
+		this.plugin.getDatabaseManager().logPlayerKick(
+				event.getPlayer(),
+				Optional.ofNullable(event.getServer())
+						.map(RegisteredServer::getServerInfo)
+						.map(ServerInfo::getName)
+						.orElse(""),
+				event.getServerKickReason()
+						.map(LegacyComponentSerializer.legacySection()::serialize)
+						.map(s -> s.length() > 255 ? s.substring(0, 255) : s)
+						.orElse(""));
+	}
 }

@@ -18,47 +18,67 @@ pages.dashboard = (function() {
 	function navigate() {
 		// Retrieve initial graph data
 		getStatsData('', function(data) {
-			chart = new Highcharts.StockChart({
-				chart: { renderTo: 'graph-dashboard' },
-				series: data,
-				yAxis: { min: 0 },
-				rangeSelector: {
-					buttons: [
-						{
-							count: 1,
-							type: 'hour',
-							text: '1h'
-						},
-						{
-							count: 3,
-							type: 'hour',
-							text: '3h'
-						},
-						{
-							count: 1,
-							type: 'day',
-							text: '1d'
-						},
-						{
-							count: 1,
-							type: 'week',
-							text: '1w'
-						},
-						{
-							count: 2,
-							type: 'week',
-							text: '2w'
-						},
-						{
-							count: 1,
-							type: 'month',
-							text: '1m'
-						}
-					],
-					inputEnabled: true,
-					selected: 0
-				}
-			});
+			console.log(data);
+			for (let i = 3; i < data.length; i++) {
+				data[i]['visible'] = false;
+			}
+			chart = Highcharts.chart('graph-dashboard', {
+				accessibility: {
+					enabled: false
+				},
+	            chart: {
+					styledMode: true,
+					backgroundColor: null,
+	                zoomType: 'x'
+	            },
+	            title: {
+	                text: 'Online players'
+	            },
+	            subtitle: {
+	                text: document.ontouchstart === undefined ?
+	                    'Click and drag in the plot area to zoom in' : 'Pinch the chart to zoom in'
+	            },
+	            xAxis: {
+	                type: 'datetime'
+	            },
+	            yAxis: {
+                    min: 0,
+	                title: {
+	                    text: 'Players'
+	                }
+	            },
+	            legend: {
+	                enabled: true
+	            },
+	            plotOptions: {
+	                area: {
+	                    fillColor: {
+	                        linearGradient: {
+	                            x1: 0,
+	                            y1: .1,
+	                            x2: .1,
+	                            y2: .9
+	                        },
+	                        stops: [
+	                            [0, Highcharts.getOptions().colors[0]],
+	                            [1, Highcharts.color(Highcharts.getOptions().colors[0]).setOpacity(0).get('rgba')]
+	                        ]
+	                    },
+	                    marker: {
+	                        radius: 2
+	                    },
+	                    lineWidth: 1,
+	                    states: {
+	                        hover: {
+	                            lineWidth: 1
+	                        }
+	                    },
+	                    threshold: null
+	                }
+	            },
+	
+	            series: data
+	        });
 		});
 		
 		update(0);
@@ -72,7 +92,7 @@ pages.dashboard = (function() {
 			var entries = '';
 			var i = 0;
 			for (server in data) {
-				entries += '<li data-server="' + server + '">' + server + '<span class="badge">' + data[server] + '</span></li>';
+				entries += `<li data-server="${server}"><a class="serverlink" data-server="${server}">${server}<span class="badge">${data[server]}</span></a></li>`;
 				players += data[server];
 				i++;
 			}
@@ -86,7 +106,7 @@ pages.dashboard = (function() {
 			query('api/getlogs?limit=' + i + '&time=' + lastUpdate, function(data) {
 				var entries = '';
 				for (item in data) {
-					entries += '<li>' + formatLog(data[item], true) + '</li>';
+					entries += '<li><span>' + formatLog(data[item], true, true) + '</span></li>';
 				}
 				
 				$('#dashboard .logs .log').prepend(entries);
@@ -114,15 +134,42 @@ pages.dashboard = (function() {
 	// Retrieve the statistics for the graph
 	function getStatsData(since, cb) {
 		if (hasPermission('stats')) {
-			query('api/getstats?since=' + since, function(data) {
-				var out = [];
-				for (c in stats) {
+			query('api/getstats?since=' + since + "&servers=", function(data) {
+				let out = [];
+				let values = [];
+				for (let i = 0; i < data.fields.length; i++) {
+					console.log(stats[data.fields[i].toLowerCase()]);
+					values[i] = [];
+				}
+				globalData = data.data[''];
+				for (const k in globalData) {
+					const time = parseInt(k);
+					const val = globalData[k];
+					for (let i = 0; i < values.length; i++) {
+						values[i].push([time, val[i]]);
+					}
+				}
+				for (let i = 0; i < values.length; i++) {
 					out.push({
-						name: stats[c],
-						data: data.data[c]
+						name: stats[data.fields[i].toLowerCase()],
+						data: values[i]
 					});
 				}
-				cb(out, data.increment);
+				query('api/getstats?since=' + since + "&fields=playercount", function(data) {
+					delete data.data[''];
+					for (srv in data.data) {
+						globalData = data.data[srv];
+						values = [];
+						for (const k in globalData) {
+							values.push([parseInt(k), globalData[k][0]]);
+						}
+						out.push({
+							name: srv,
+							data: values
+						});
+					}
+					cb(out, data.increment);
+				});
 			});
 		}
 	}
